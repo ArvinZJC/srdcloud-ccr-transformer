@@ -11,6 +11,7 @@ const {
   SRDCloudTransformer,
   createSRDCloudProviderPlugin,
   decryptApiKey,
+  discoverModelLimits,
   normalizeSRDCloudRequestBody,
   readCredentials,
   stripProviderPrefix
@@ -47,7 +48,7 @@ test("readCredentials reads id_token as userId and decrypted apikey as apiKey", 
   });
 });
 
-test("transformRequestIn preserves the legacy SRD Cloud request contract", async () => {
+test("transformRequestIn sends CodeFree-O client headers and subservice", async () => {
   const transformer = new SRDCloudTransformer({
     authHeader: "Bearer custom",
     clientVersion: "1.2.3",
@@ -76,11 +77,23 @@ test("transformRequestIn preserves the legacy SRD Cloud request contract", async
     apiKey: "provided-key",
     authorization: "Bearer custom",
     userId: "user-1",
-    subService: "cli_chat",
+    subService: "codefree_o_chat",
     modelName: "body-model",
-    clientType: "codefree-cli",
+    clientType: "codefree-o",
     clientVersion: "1.2.3"
   });
+});
+
+test("transformRequestIn can include an explicit SRDCloud sessionId", async () => {
+  const transformer = new SRDCloudTransformer({
+    sessionId: "session-1",
+    skipVersionUpdate: true,
+    userId: "user-1"
+  });
+
+  const result = await transformer.transformRequestIn({ model: "GLM-5.1" }, { apiKey: "secret-key" });
+
+  assert.equal(result.config.headers.sessionId, "session-1");
 });
 
 test("transformRequestIn preserves an empty caller apiKey like the legacy transformer", async () => {
@@ -205,6 +218,54 @@ test("normalizeSRDCloudRequestBody preserves request shape and converts only Ant
         type: "function"
       }
     ]
+  });
+});
+
+test("discoverModelLimits reads SRDCloud model manager output token metadata", async () => {
+  const calls = [];
+  const limits = await discoverModelLimits({
+    apiKey: "secret-key",
+    baseUrl: "https://www.srdcloud.cn",
+    clientVersion: "1.4.0",
+    fetch: async (url, init) => {
+      calls.push([url, init]);
+      return {
+        ok: true,
+        async json() {
+          return {
+            data: [
+              {
+                modelName: "GLM-5.1-ctyun-oc",
+                maxTokens: 112000,
+                maxOutputTokens: 16000
+              },
+              {
+                modelName: "GLM-4.7",
+                maxTokens: 80000,
+                maxOutputTokens: 8000
+              }
+            ],
+            optResult: 0
+          };
+        }
+      };
+    },
+    userId: "user-1"
+  });
+
+  assert.deepEqual(limits, {
+    "GLM-4.7": { maxOutputTokens: 8000, maxTokens: 80000 },
+    "GLM-5.1-ctyun-oc": { maxOutputTokens: 16000, maxTokens: 112000 }
+  });
+  assert.equal(
+    calls[0][0],
+    "https://www.srdcloud.cn/api/acbackend/modelmgr/v1/clients/codefree-o/versions/1.4.0"
+  );
+  assert.deepEqual(calls[0][1].headers, {
+    apiKey: "secret-key",
+    clientType: "codefree-o",
+    clientVersion: "1.4.0",
+    userId: "user-1"
   });
 });
 
@@ -406,7 +467,7 @@ test("normalizeSRDCloudRequestBody removes generated historical tool request tex
   assert.equal(serialized.includes("Still waiting for the ansible _utils and caches/utils agents."), true);
 });
 
-test("createSRDCloudProviderPlugin exposes native CCR Desktop request adapter config", () => {
+test("createSRDCloudProviderPlugin exposes native CCR Desktop request adapter config", async () => {
   const plugin = createSRDCloudProviderPlugin({
     apiKey: "secret-key",
     authHeader: "Bearer custom",
@@ -437,14 +498,14 @@ test("createSRDCloudProviderPlugin exposes native CCR Desktop request adapter co
     "User-Agent": "UnitTest/1.0",
     apiKey: "secret-key",
     authorization: "Bearer custom",
-    clientType: "codefree-cli",
+    clientType: "codefree-o",
     clientVersion: "1.2.3",
-    subService: "cli_chat",
+    subService: "codefree_o_chat",
     userId: "user-1",
     modelName: undefined
   });
 
-  const transformed = plugin.transformRequest({
+  const transformed = await plugin.transformRequest({
     request: {
       body: {
         model: "srdcloud/GLM-5.1",
@@ -469,7 +530,125 @@ test("createSRDCloudProviderPlugin exposes native CCR Desktop request adapter co
   assert.equal(transformed.value.headers.modelName, "GLM-5.1");
 });
 
-test("provider hook debug logging writes request metadata to a configured log file", () => {
+test("provider hook clamps chat max_tokens with discovered model maxOutputTokens", async () => {
+  const plugin = createSRDCloudProviderPlugin({
+    apiKey: "secret-key",
+    clientVersion: "1.4.0",
+    credentials: null,
+    discoverModelLimits: true,
+    modelLimitsTtlMs: 60 * 60 * 1000,
+    modelLimitsFetch: async () => ({
+      ok: true,
+      async json() {
+        return {
+          data: [
+            {
+              modelName: "GLM-5.1-ctyun-oc",
+              maxTokens: 112000,
+              maxOutputTokens: 16000
+            }
+          ],
+          optResult: 0
+        };
+      }
+    }),
+    providerName: "provider-srdcloud::openai_responses",
+    userId: "user-1"
+  });
+
+  const transformed = await plugin.transformRequest({
+    request: {
+      body: {
+        max_tokens: 32000,
+        messages: [{ role: "user", content: "hello" }],
+        model: "srdcloud/GLM-5.1-ctyun-oc"
+      }
+    },
+    targetProviderConfig: {
+      baseurl: "https://www.srdcloud.cn"
+    },
+    upstreamRequest: {
+      body: {},
+      headers: {},
+      url: "https://old.example/v1/chat/completions"
+    }
+  });
+
+  assert.equal(transformed.ok, true);
+  assert.equal(transformed.value.body.max_tokens, 16000);
+});
+
+test("provider hook drops internal x-codefree-sub-service while preserving session affinity", async () => {
+  const plugin = createSRDCloudProviderPlugin({
+    apiKey: "secret-key",
+    credentials: null,
+    userId: "user-1"
+  });
+
+  const transformed = await plugin.transformRequest({
+    request: {
+      body: {
+        messages: [{ role: "user", content: "hello" }],
+        model: "srdcloud/GLM-5.1"
+      }
+    },
+    targetProviderConfig: {},
+    upstreamRequest: {
+      body: {},
+      headers: {
+        "content-type": "application/json",
+        "x-codefree-sub-service": "internal-route",
+        "x-session-affinity": "session-from-ccr"
+      },
+      url: "https://old.example/v1/chat/completions"
+    }
+  });
+
+  assert.equal(transformed.value.headers["x-codefree-sub-service"], undefined);
+  assert.equal(transformed.value.headers.sessionId, "session-from-ccr");
+  assert.equal(transformed.value.headers.subService, "codefree_o_chat");
+});
+
+test("provider hook routes embeddings without chat normalization", async () => {
+  const plugin = createSRDCloudProviderPlugin({
+    apiKey: "secret-key",
+    credentials: null,
+    providerName: "provider-srdcloud::openai_responses",
+    userId: "user-1"
+  });
+
+  const transformed = await plugin.transformRequest({
+    request: {
+      body: {
+        encoding_format: "float",
+        input: ["hello"],
+        model: "srdcloud/embedding-model"
+      }
+    },
+    targetProviderConfig: {
+      baseurl: "https://www.srdcloud.cn"
+    },
+    upstreamRequest: {
+      body: {},
+      headers: {},
+      url: "https://old.example/v1/embeddings"
+    }
+  });
+
+  assert.equal(transformed.ok, true);
+  assert.equal(
+    transformed.value.url,
+    "https://www.srdcloud.cn/api/aebackend/codefree-embedding-svc/v1/text-to-embedding-vector"
+  );
+  assert.deepEqual(transformed.value.body, {
+    encoding_format: "float",
+    input: ["hello"],
+    model: "embedding-model"
+  });
+  assert.equal(transformed.value.headers.modelName, "embedding-model");
+});
+
+test("provider hook debug logging writes request metadata to a configured log file", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "srdcloud-logs-"));
   const logFile = path.join(dir, "srdcloud-transformer.log");
   const plugin = createSRDCloudProviderPlugin({
@@ -484,7 +663,7 @@ test("provider hook debug logging writes request metadata to a configured log fi
     userId: "user-1"
   });
 
-  plugin.transformRequest({
+  await plugin.transformRequest({
     request: {
       body: {
         messages: [
@@ -515,7 +694,7 @@ test("provider hook debug logging writes request metadata to a configured log fi
   assert.equal(log.includes('"toolCount":1'), true);
 });
 
-test("provider hook file logging rotates before appending past the size cap", () => {
+test("provider hook file logging rotates before appending past the size cap", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "srdcloud-logs-"));
   const logFile = path.join(dir, "srdcloud-transformer.log");
   fs.writeFileSync(logFile, `${"x".repeat(220)}\n`);
@@ -535,7 +714,7 @@ test("provider hook file logging rotates before appending past the size cap", ()
     userId: "user-1"
   });
 
-  plugin.transformRequest({
+  await plugin.transformRequest({
     request: {
       body: {
         messages: [{ role: "user", content: "hidden" }],

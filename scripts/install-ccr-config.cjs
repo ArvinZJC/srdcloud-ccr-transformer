@@ -16,8 +16,13 @@ const defaultDbPath = path.join(os.homedir(), ".claude-code-router", "config.sql
 const dbPath = process.env.CCR_CONFIG_DB || defaultDbPath;
 const dryRun = process.argv.includes("--dry-run");
 const flattenToolMessages = process.argv.includes("--flatten-tool-messages");
+const discoverModelLimits = process.argv.includes("--discover-model-limits");
 const logLevelIndex = process.argv.indexOf("--log-level");
 const logLevel = logLevelIndex >= 0 ? process.argv[logLevelIndex + 1] : undefined;
+const maxTokensCapIndex = process.argv.indexOf("--max-tokens-cap");
+const maxTokensCap = maxTokensCapIndex >= 0 ? Number(process.argv[maxTokensCapIndex + 1]) : undefined;
+const subServiceIndex = process.argv.indexOf("--sub-service");
+const subService = subServiceIndex >= 0 ? process.argv[subServiceIndex + 1] : undefined;
 const pluginDataDir = path.join(os.homedir(), ".claude-code-router", "app-data", "plugins", "srdcloud-transformer");
 const logFile = path.join(pluginDataDir, "srdcloud-transformer.log");
 
@@ -71,9 +76,12 @@ const current = readDefaultConfig();
 const { appConfig, gatewayPlugin } = withSRDCloudCoreGatewayPlugin(current, {
   projectRoot,
   pluginConfigDefaults: {
+    ...(discoverModelLimits ? { discoverModelLimits: true } : {}),
     ...(flattenToolMessages ? { flattenToolMessages: true } : {}),
     logFile,
-    ...(logLevel ? { logLevel } : {})
+    ...(logLevel ? { logLevel } : {}),
+    ...(Number.isInteger(maxTokensCap) && maxTokensCap > 0 ? { maxTokensCap } : {}),
+    ...(subService ? { subService } : {})
   }
 });
 

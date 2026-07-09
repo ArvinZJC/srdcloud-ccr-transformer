@@ -45,6 +45,8 @@ Pull requests should describe the CCR runtime scenario tested, list local comman
 
 Keep user-facing setup, configuration, and troubleshooting details in `README.md`. If the same topic needs to be mentioned here for contributors, link or refer to `README.md` instead of duplicating the content.
 
+Do not expose SRDCloud API route paths, credential file locations, log file locations, or machine-specific local paths in public-facing docs. Keep those details in implementation code, tests, or provenance records only when they are needed for maintainability.
+
 ## Security & Configuration Tips
 
-Never commit credentials, generated runtime config, or local CCR logs. For credential locations and log troubleshooting, refer to `README.md`.
+Never commit credentials, generated runtime config, or local CCR logs. For credential configuration and log troubleshooting, refer to `README.md`.

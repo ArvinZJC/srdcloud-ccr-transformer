@@ -8,13 +8,18 @@ const path = require("node:path");
 
 const DEFAULT_BASE_URL = "https://www.srdcloud.cn";
 const DEFAULT_AUTH_HEADER = "Bearer codefree";
-const DEFAULT_CLIENT_VERSION = "0.3.6";
-const DEFAULT_PACKAGE_NAME = "@srdcloud/codefree-cli";
+const DEFAULT_CLIENT_TYPE = "codefree-o";
+const DEFAULT_CLIENT_VERSION = "1.4.0";
+const DEFAULT_PACKAGE_NAME = "@srdcloud/codefree-o";
+const DEFAULT_SUB_SERVICE = "codefree_o_chat";
 const DEFAULT_USER_AGENT = "OpenAI/JS 5.11.0";
 const ENDPOINT_PATH = "/api/acbackend/codechat/v1/completions";
+const EMBEDDINGS_ENDPOINT_PATH = "/api/aebackend/codefree-embedding-svc/v1/text-to-embedding-vector";
+const MODEL_MANAGER_PATH = "/api/acbackend/modelmgr/v1/clients/codefree-o/versions/";
 const CREDENTIALS_PATH = path.join(os.homedir(), ".codefree-cli/oauth_creds.json");
 const VERSION_CACHE_FILE = path.join(os.homedir(), ".codefree-cli/.version_cache.json");
 const VERSION_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const MODEL_LIMITS_TTL_MS = 60 * 60 * 1000;
 
 const AES_KEY = Buffer.from("Xtpa6sS&+D.NAo%CP8LA:7pk", "utf8");
 const AES_IV = Buffer.from("%1KJIrl3!XUxr04V", "utf8");
@@ -149,6 +154,11 @@ function createLevelLogger(logger = console, level = "warn") {
 function normalizePositiveInteger(value, fallback) {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parsePositiveInteger(value) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function rotateLogFile(filePath, maxFiles) {
@@ -506,18 +516,178 @@ function providerApiKey(providerConfig = {}) {
   return firstString(providerConfig.apikey, providerConfig.apiKey, providerConfig.api_key);
 }
 
+function headerValue(headers = {}, name) {
+  if (!headers || typeof headers !== "object") {
+    return undefined;
+  }
+  if (typeof headers.get === "function") {
+    return headers.get(name) || undefined;
+  }
+  const lowerName = name.toLowerCase();
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() === lowerName) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function forwardedRequestHeaders(headers = {}) {
+  if (!headers || typeof headers !== "object") {
+    return {};
+  }
+  const forwarded = {};
+  const assign = (key, value) => {
+    if (key.toLowerCase() !== "x-codefree-sub-service") {
+      forwarded[key] = value;
+    }
+  };
+  if (typeof headers.forEach === "function") {
+    headers.forEach((value, key) => assign(key, value));
+    return forwarded;
+  }
+  for (const [key, value] of Object.entries(headers)) {
+    assign(key, value);
+  }
+  return forwarded;
+}
+
+function srdCloudSessionId(options = {}, existingHeaders = {}) {
+  return firstString(
+    options.sessionId,
+    headerValue(existingHeaders, "x-session-affinity"),
+    headerValue(existingHeaders, "X-Session-Id")
+  );
+}
+
 function srdCloudHeaders(options, providerConfig, modelName, existingHeaders = {}) {
+  const sessionId = srdCloudSessionId(options, existingHeaders);
   return {
-    ...existingHeaders,
+    ...forwardedRequestHeaders(existingHeaders),
     Accept: "application/json",
     "User-Agent": options.userAgent || DEFAULT_USER_AGENT,
     apiKey: options.apiKey || providerApiKey(providerConfig),
     authorization: options.authHeader || DEFAULT_AUTH_HEADER,
     userId: options.userId || null,
-    subService: "cli_chat",
+    subService: options.subService || DEFAULT_SUB_SERVICE,
     modelName,
-    clientType: "codefree-cli",
-    clientVersion: options.clientVersion || DEFAULT_CLIENT_VERSION
+    clientType: options.clientType || DEFAULT_CLIENT_TYPE,
+    clientVersion: options.clientVersion || DEFAULT_CLIENT_VERSION,
+    ...(sessionId ? { sessionId } : {})
+  };
+}
+
+function endpointKindFromUrl(url) {
+  try {
+    const pathname = new URL(url).pathname;
+    if (pathname.endsWith("/embeddings")) {
+      return "embeddings";
+    }
+  } catch {
+    return "chat";
+  }
+  return "chat";
+}
+
+function normalizeEmbeddingRequestBody(body) {
+  if (!isRecord(body)) {
+    return body;
+  }
+  const normalized = { ...body };
+  if (typeof normalized.model === "string") {
+    normalized.model = stripProviderPrefix(normalized.model);
+  }
+  return normalized;
+}
+
+function modelManagerUrl(baseUrl = DEFAULT_BASE_URL, clientVersion = DEFAULT_CLIENT_VERSION) {
+  return new URL(`${MODEL_MANAGER_PATH}${encodeURIComponent(clientVersion)}`, baseUrl).toString();
+}
+
+async function fetchJson(url, init, fetchImpl) {
+  const requestFetch = fetchImpl || globalThis.fetch;
+  if (typeof requestFetch !== "function") {
+    throw new Error("No fetch implementation available for SRDCloud model discovery");
+  }
+  const response = await requestFetch(url, init);
+  if (!response.ok) {
+    throw new Error(`CodeFree model discovery failed: ${response.status} ${response.statusText || ""}`.trim());
+  }
+  return response.json();
+}
+
+async function discoverModelLimits(options = {}) {
+  const clientVersion = options.clientVersion || DEFAULT_CLIENT_VERSION;
+  const url = modelManagerUrl(options.baseUrl || DEFAULT_BASE_URL, clientVersion);
+  const response = await fetchJson(
+    url,
+    {
+      method: "GET",
+      headers: {
+        apiKey: options.apiKey,
+        clientType: options.clientType || DEFAULT_CLIENT_TYPE,
+        clientVersion,
+        userId: options.userId
+      }
+    },
+    options.fetch
+  );
+  if (response.optResult !== 0) {
+    throw new Error(`CodeFree model discovery failed: ${response.msg || response.optResult}`);
+  }
+
+  const limits = {};
+  for (const item of Array.isArray(response.data) ? response.data : []) {
+    if (!isRecord(item) || typeof item.modelName !== "string") {
+      continue;
+    }
+    const maxTokens = parsePositiveInteger(item.maxTokens) || 80000;
+    const maxOutputTokens = parsePositiveInteger(item.maxOutputTokens) || 8000;
+    limits[item.modelName] = { maxOutputTokens, maxTokens };
+  }
+  return limits;
+}
+
+function createModelLimitsCache(options = {}) {
+  let cached = null;
+  let cachedAt = 0;
+  const ttlMs = normalizePositiveInteger(options.modelLimitsTtlMs, MODEL_LIMITS_TTL_MS);
+  return {
+    async get(discoveryOptions) {
+      const now = Date.now();
+      if (cached && now - cachedAt < ttlMs) {
+        return cached;
+      }
+      cached = await discoverModelLimits(discoveryOptions);
+      cachedAt = now;
+      return cached;
+    }
+  };
+}
+
+function configuredModelLimit(options = {}, modelName) {
+  if (!modelName || !isRecord(options.modelMaxOutputTokens)) {
+    return undefined;
+  }
+  return parsePositiveInteger(options.modelMaxOutputTokens[modelName]);
+}
+
+function clampMaxTokens(body, modelName, options = {}, discoveredLimits = {}) {
+  if (!isRecord(body) || !hasOwn(body, "max_tokens")) {
+    return body;
+  }
+  const candidates = [
+    parsePositiveInteger(body.max_tokens),
+    parsePositiveInteger(options.maxTokensCap),
+    configuredModelLimit(options, modelName),
+    parsePositiveInteger(discoveredLimits?.[modelName]?.maxOutputTokens)
+  ].filter((value) => value !== undefined);
+  if (candidates.length === 0) {
+    return body;
+  }
+  return {
+    ...body,
+    max_tokens: Math.min(...candidates)
   };
 }
 
@@ -546,6 +716,7 @@ function bodyMetadata(body) {
     messageCount: messages.length,
     messageRoles,
     model: typeof body.model === "string" ? body.model : undefined,
+    maxTokens: parsePositiveInteger(body.max_tokens),
     stream: typeof body.stream === "boolean" ? body.stream : undefined,
     systemType: Array.isArray(body.system) ? "array" : typeof body.system,
     toolCount: Array.isArray(body.tools) ? body.tools.length : 0
@@ -562,6 +733,34 @@ function createSRDCloudProviderPlugin(options = {}) {
     userId: options.userId || credentials?.userId || null
   };
   const logger = createControlledLogger(options);
+  const modelLimitsCache = createModelLimitsCache(options);
+
+  async function loadModelLimits(targetProviderConfig) {
+    if (pluginOptions.discoverModelLimits !== true) {
+      return {};
+    }
+    if (!pluginOptions.apiKey && !providerApiKey(targetProviderConfig)) {
+      return {};
+    }
+    if (!pluginOptions.userId) {
+      return {};
+    }
+    try {
+      return await modelLimitsCache.get({
+        apiKey: pluginOptions.apiKey || providerApiKey(targetProviderConfig),
+        baseUrl: providerBaseUrl(targetProviderConfig),
+        clientType: pluginOptions.clientType || DEFAULT_CLIENT_TYPE,
+        clientVersion: pluginOptions.clientVersion || DEFAULT_CLIENT_VERSION,
+        fetch: pluginOptions.modelLimitsFetch,
+        userId: pluginOptions.userId
+      });
+    } catch (error) {
+      logger.warn("[SRDCloudTransformer] model discovery failed", {
+        message: error.message
+      });
+      return {};
+    }
+  }
 
   return {
     key: options.key || "srdcloud-target-adapter",
@@ -575,17 +774,27 @@ function createSRDCloudProviderPlugin(options = {}) {
         }
       };
     },
-    transformRequest({ request, targetProviderConfig, upstreamRequest }) {
+    async transformRequest({ request, targetProviderConfig, upstreamRequest }) {
       const sourceBody = isRecord(request?.body) ? request.body : upstreamRequest.body;
-      const body = normalizeSRDCloudRequestBody(sourceBody, {
-        flattenToolMessages: pluginOptions.flattenToolMessages === true
-      });
+      const endpointKind = endpointKindFromUrl(upstreamRequest.url);
+      const baseUrl = providerBaseUrl(targetProviderConfig);
+      const body = endpointKind === "embeddings"
+        ? normalizeEmbeddingRequestBody(sourceBody)
+        : normalizeSRDCloudRequestBody(sourceBody, {
+          flattenToolMessages: pluginOptions.flattenToolMessages === true
+        });
       const modelName = pluginOptions.modelName ||
         (isRecord(body) ? body.model || body.modelName : undefined) ||
         (isRecord(upstreamRequest.body) ? upstreamRequest.body.model || upstreamRequest.body.modelName : undefined);
-      const url = new URL(ENDPOINT_PATH, providerBaseUrl(targetProviderConfig)).toString();
+      const discoveredLimits = endpointKind === "chat" ? await loadModelLimits(targetProviderConfig) : {};
+      const transformedBody = endpointKind === "chat"
+        ? clampMaxTokens(body, modelName, pluginOptions, discoveredLimits)
+        : body;
+      const endpointPath = endpointKind === "embeddings" ? EMBEDDINGS_ENDPOINT_PATH : ENDPOINT_PATH;
+      const url = new URL(endpointPath, baseUrl).toString();
       logger.debug("[SRDCloudTransformer] provider hook transformed request", {
-        body: bodyMetadata(body),
+        body: bodyMetadata(transformedBody),
+        endpointKind,
         hasApiKey: Boolean(pluginOptions.apiKey || providerApiKey(targetProviderConfig)),
         hasUserId: Boolean(pluginOptions.userId),
         modelName,
@@ -595,7 +804,7 @@ function createSRDCloudProviderPlugin(options = {}) {
         ok: true,
         value: {
           ...upstreamRequest,
-          body,
+          body: transformedBody,
           bodyEncoding: "json",
           method: "POST",
           url,
@@ -619,7 +828,10 @@ class SRDCloudTransformer {
     this.userId = options.userId || credentials?.userId || null;
     this.apiKey = options.apiKey || credentials?.apiKey || null;
     this.authHeader = options.authHeader || DEFAULT_AUTH_HEADER;
+    this.clientType = options.clientType || DEFAULT_CLIENT_TYPE;
     this.clientVersion = options.clientVersion || DEFAULT_CLIENT_VERSION;
+    this.subService = options.subService || DEFAULT_SUB_SERVICE;
+    this.sessionId = options.sessionId;
     this._versionUpdatePromise = options.skipVersionUpdate
       ? null
       : this._updateClientVersion(options.versionPackageName || DEFAULT_PACKAGE_NAME, options.cacheFile);
@@ -674,10 +886,11 @@ class SRDCloudTransformer {
           apiKey,
           authorization: this.authHeader,
           userId: this.userId,
-          subService: "cli_chat",
+          subService: this.subService,
           modelName,
-          clientType: "codefree-cli",
-          clientVersion: this.clientVersion
+          clientType: this.clientType,
+          clientVersion: this.clientVersion,
+          ...(this.sessionId ? { sessionId: this.sessionId } : {})
         }
       }
     };
@@ -692,18 +905,24 @@ module.exports = {
   CREDENTIALS_PATH,
   DEFAULT_AUTH_HEADER,
   DEFAULT_BASE_URL,
+  DEFAULT_CLIENT_TYPE,
   DEFAULT_CLIENT_VERSION,
   DEFAULT_LOG_MAX_BYTES,
   DEFAULT_LOG_MAX_FILES,
   DEFAULT_PACKAGE_NAME,
+  DEFAULT_SUB_SERVICE,
   DEFAULT_USER_AGENT,
+  EMBEDDINGS_ENDPOINT_PATH,
   ENDPOINT_PATH,
+  MODEL_LIMITS_TTL_MS,
+  MODEL_MANAGER_PATH,
   SRDCloudTransformer,
   VERSION_CACHE_FILE,
   createLevelLogger,
   createSRDCloudProviderPlugin,
   createControlledLogger,
   decryptApiKey,
+  discoverModelLimits,
   getCachedVersion,
   getLatestVersion,
   getLatestVersionWithCache,
