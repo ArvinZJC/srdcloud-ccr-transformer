@@ -1,0 +1,12 @@
+{
+  "id": "srdcloud-transformer",
+  "name": "SRD Cloud Transformer",
+  "module": "index.cjs",
+  "apps": [
+    {
+      "id": "srdcloud-transformer-status",
+      "name": "SRD Cloud Transformer",
+      "url": "http://127.0.0.1:3456/plugins/srdcloud-transformer"
+    }
+  ]
+}
