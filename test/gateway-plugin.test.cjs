@@ -81,7 +81,7 @@ test("gateway plugin module uses direct config and writes a creation log marker"
   assert.equal(fs.readFileSync(logFile, "utf8").includes("[SRDCloudTransformer] gateway plugin created"), true);
 });
 
-test("gateway plugin module reads runtime config after CCR normalizes plugin config away", () => {
+test("gateway plugin module reads runtime config after CCR normalizes plugin config away", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "srdcloud-gateway-runtime-"));
   const runtimeConfigPath = path.join(dir, ".ccr-gateway-plugin.config.json");
   const logFile = path.join(dir, "srdcloud-transformer.log");
@@ -97,7 +97,7 @@ test("gateway plugin module reads runtime config after CCR normalizes plugin con
     })
   );
 
-  withRuntimeConfigPath(runtimeConfigPath, () => {
+  await withRuntimeConfigPath(runtimeConfigPath, async () => {
     const result = gatewayPlugin.createGatewayPlugin({
       config: {
         plugins: [
@@ -116,7 +116,7 @@ test("gateway plugin module reads runtime config after CCR normalizes plugin con
     });
 
     assert.equal(result.providerHooks[0].providerName, "provider-srdcloud::openai_responses");
-    result.providerHooks[0].transformRequest({
+    await result.providerHooks[0].transformRequest({
       request: {
         body: {
           messages: [

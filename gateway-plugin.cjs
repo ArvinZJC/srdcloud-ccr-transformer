@@ -12,9 +12,11 @@ const DEFAULT_RUNTIME_CONFIG_PATH = path.join(__dirname, ".ccr-gateway-plugin.co
 const PLUGIN_CONFIG_KEYS = new Set([
   "apiKey",
   "authHeader",
+  "clientType",
   "clientVersion",
   "credentials",
   "credentialsPath",
+  "discoverModelLimits",
   "flattenToolMessages",
   "key",
   "logFile",
@@ -23,9 +25,14 @@ const PLUGIN_CONFIG_KEYS = new Set([
   "logMaxFiles",
   "logToFile",
   "logging",
+  "maxTokensCap",
+  "modelLimitsTtlMs",
+  "modelMaxOutputTokens",
   "modelName",
   "provider",
   "providerName",
+  "sessionId",
+  "subService",
   "userAgent",
   "userId"
 ]);

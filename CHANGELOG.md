@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0 - 2026-07-09
+
+### Added
+
+- Added CodeFree-O model manager discovery for chat model context and output
+  limits, with cached `maxOutputTokens` clamping for outgoing `max_tokens`.
+- Added SRDCloud embedding endpoint routing for OpenAI-compatible embedding
+  requests.
+- Added CodeFree-O default request headers, optional `sessionId` forwarding from
+  CCR session affinity, and configuration flags for model discovery and
+  `maxTokensCap`.
+
 ## 0.1.0 - 2026-07-09
 
 ### Added

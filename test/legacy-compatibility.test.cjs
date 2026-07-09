@@ -25,6 +25,13 @@ async function runLegacy(body, requestConfig, options = {}) {
   return comparable(await transformer.transformRequestIn(comparable(body), requestConfig));
 }
 
+function withCodeFreeOHeaders(value) {
+  const comparableValue = comparable(value);
+  comparableValue.config.headers.clientType = "codefree-o";
+  comparableValue.config.headers.subService = "codefree_o_chat";
+  return comparableValue;
+}
+
 async function runRestored(body, requestConfig, options = {}) {
   const transformer = new SRDCloudTransformer({
     apiKey: "credential-key",
@@ -39,7 +46,7 @@ async function runRestored(body, requestConfig, options = {}) {
   return comparable(await transformer.transformRequestIn(comparable(body), requestConfig));
 }
 
-test("restored transformer matches legacy request transform outputs for covered cases", async () => {
+test("restored transformer keeps legacy request shape with CodeFree-O client headers", async () => {
   const cases = [
     {
       body: { messages: [{ role: "user", content: "hi" }], model: "body-model" },
@@ -67,7 +74,7 @@ test("restored transformer matches legacy request transform outputs for covered 
   for (const item of cases) {
     assert.deepEqual(
       await runRestored(item.body, item.requestConfig, item.options),
-      await runLegacy(item.body, item.requestConfig, item.options),
+      withCodeFreeOHeaders(await runLegacy(item.body, item.requestConfig, item.options)),
       item.name
     );
   }
