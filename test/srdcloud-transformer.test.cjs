@@ -504,7 +504,7 @@ test("normalizeSRDCloudRequestBody preserves system message order without images
   assert.deepEqual(normalized.messages.map((message) => message.role), ["user", "system"]);
 });
 
-test("normalizeSRDCloudRequestBody can flatten historical tool blocks for SRDCloud compatibility", () => {
+test("normalizeSRDCloudRequestBody flattens paired historical tool blocks by default", () => {
   const body = {
     messages: [
       {
@@ -533,7 +533,7 @@ test("normalizeSRDCloudRequestBody can flatten historical tool blocks for SRDClo
     model: "srdcloud/GLM-5.1"
   };
 
-  const normalized = normalizeSRDCloudRequestBody(body, { flattenToolMessages: true });
+  const normalized = normalizeSRDCloudRequestBody(body);
 
   assert.deepEqual(normalized.messages, [
     {
@@ -547,11 +547,139 @@ test("normalizeSRDCloudRequestBody can flatten historical tool blocks for SRDClo
       content: [
         {
           type: "text",
-          text: "Observation from previous internal operation:\nfile contents"
+          text:
+            "Completed internal operation \"Read\".\n" +
+            "Parameters: {\"file_path\":\"/tmp/a.txt\"}\n" +
+            "Outcome: succeeded\n" +
+            "Result:\n" +
+            "file contents"
         }
       ]
     }
   ]);
+});
+
+test("normalizeSRDCloudRequestBody preserves failed operation context without protocol markers", () => {
+  const body = {
+    messages: [
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool_use",
+            id: "tool-bash-1",
+            name: "Bash",
+            input: { command: "grep -n needle file.py" }
+          }
+        ]
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: "tool-bash-1",
+            is_error: true,
+            content: "file.py: No such file"
+          }
+        ]
+      }
+    ],
+    model: "srdcloud/GLM-5.1"
+  };
+
+  const normalized = normalizeSRDCloudRequestBody(body);
+  const serialized = JSON.stringify(normalized.messages);
+
+  assert.deepEqual(normalized.messages, [
+    {
+      role: "user",
+      content: [
+        {
+          type: "text",
+          text:
+            "Completed internal operation \"Bash\".\n" +
+            "Parameters: {\"command\":\"grep -n needle file.py\"}\n" +
+            "Outcome: failed\n" +
+            "Result:\n" +
+            "file.py: No such file"
+        }
+      ]
+    }
+  ]);
+  assert.equal(serialized.includes("tool-bash-1"), false);
+  assert.equal(serialized.includes("tool_use"), false);
+  assert.equal(serialized.includes("tool_result"), false);
+});
+
+test("normalizeSRDCloudRequestBody bounds flattened operation parameters", () => {
+  const body = {
+    messages: [
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool_use",
+            id: "tool-agent-1",
+            name: "Agent",
+            input: { prompt: `START-${"x".repeat(3000)}-PRIVATE-TAIL` }
+          }
+        ]
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: "tool-agent-1",
+            content: "Agent completed"
+          }
+        ]
+      }
+    ],
+    model: "srdcloud/GLM-5.1"
+  };
+
+  const normalized = normalizeSRDCloudRequestBody(body);
+  const text = normalized.messages[0].content[0].text;
+
+  assert.match(text, /Parameters: .*\[truncated from \d+ characters\]/s);
+  assert.equal(text.includes("-PRIVATE-TAIL"), false);
+  assert.equal(text.length < 2300, true);
+});
+
+test("normalizeSRDCloudRequestBody allows an explicit flattening opt-out", () => {
+  const body = {
+    messages: [
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool_use",
+            id: "tool-1",
+            name: "Read",
+            input: { file_path: "/tmp/a.txt" }
+          }
+        ]
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: "tool-1",
+            content: "file contents"
+          }
+        ]
+      }
+    ],
+    model: "srdcloud/GLM-5.1"
+  };
+
+  const normalized = normalizeSRDCloudRequestBody(body, { flattenToolMessages: false });
+
+  assert.equal(normalized.messages[0].content[0].type, "tool_use");
+  assert.equal(normalized.messages[1].content[0].type, "tool_result");
 });
 
 test("normalizeSRDCloudRequestBody sanitizes literal tool call transcripts when flattening", () => {
@@ -651,6 +779,29 @@ test("createSRDCloudProviderPlugin exposes native CCR Desktop request adapter co
     request: {
       body: {
         model: "srdcloud/GLM-5.1",
+        messages: [
+          {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_use",
+                id: "tool-1",
+                name: "Read",
+                input: { file_path: "/tmp/a.txt" }
+              }
+            ]
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "tool_result",
+                tool_use_id: "tool-1",
+                content: "file contents"
+              }
+            ]
+          }
+        ],
         tools: [{ input_schema: { type: "object" }, name: "read_file" }]
       }
     },
@@ -669,6 +820,9 @@ test("createSRDCloudProviderPlugin exposes native CCR Desktop request adapter co
   assert.equal(transformed.value.url, "https://www.srdcloud.cn/api/acbackend/codechat/v1/completions");
   assert.equal(transformed.value.body.model, "GLM-5.1");
   assert.equal(transformed.value.body.tools[0].type, "function");
+  assert.equal(transformed.value.body.messages.length, 1);
+  assert.equal(transformed.value.body.messages[0].content[0].type, "text");
+  assert.match(transformed.value.body.messages[0].content[0].text, /Completed internal operation "Read"/);
   assert.equal(transformed.value.headers.modelName, "GLM-5.1");
 });
 
@@ -937,7 +1091,7 @@ test("provider hook debug metadata excludes tool, system, and image content", as
     assert.equal(serializedMetadata.includes(sentinel), false);
   }
   assert.equal(debugEvents[0][1].body.hasImage, true);
-  assert.equal(debugEvents[0][1].body.hasToolResult, true);
+  assert.equal(debugEvents[0][1].body.hasToolResult, false);
   assert.equal(debugEvents[0][1].body.systemType, "string");
 });
 
@@ -1153,7 +1307,7 @@ test("provider hook debug logging writes request metadata to a configured log fi
   const log = fs.readFileSync(logFile, "utf8");
   assert.equal(log.includes("secret-key"), false);
   assert.equal(log.includes("hidden"), false);
-  assert.equal(log.includes('"hasToolResult":true'), true);
+  assert.equal(log.includes('"hasToolResult":false'), true);
   assert.equal(log.includes('"toolCount":1'), true);
 });
 

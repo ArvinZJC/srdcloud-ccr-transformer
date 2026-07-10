@@ -15,7 +15,7 @@
 - Can discover CodeFree-O model limits from SRDCloud and clamp chat `max_tokens` to the discovered `maxOutputTokens`.
 - Converts Anthropic-style tool definitions from `input_schema` to OpenAI-style `function.parameters`.
 - Converts Anthropic-style image blocks to SRDCloud-compatible `image_url` blocks and keeps system messages ahead of image messages for image-capable model requests.
-- Optionally flattens historical tool messages for upstreams that cannot handle Anthropic `tool_use` / `tool_result` blocks in later turns.
+- Flattens historical tool messages by default because SRDCloud cannot replay Anthropic `tool_use` / `tool_result` blocks in later turns.
 - Writes controlled JSONL diagnostics without logging API keys or prompt bodies.
 
 ## Requirements
@@ -52,13 +52,11 @@ Enable debug request-shape logging:
 npm run install:ccr-config -- --log-level debug
 ```
 
-Enable compatibility flattening for historical tool messages:
-
-```bash
-npm run install:ccr-config -- --log-level debug --flatten-tool-messages
-```
-
-Use `--flatten-tool-messages` if you see upstream failures or loops caused by replayed historical `tool_use` / `tool_result` content. It preserves prior tool observations as text while avoiding structured historical tool blocks in follow-up requests.
+Compatibility flattening for historical tool messages is enabled by default. It
+preserves the operation name, a bounded parameter summary, outcome, and result
+as neutral text while avoiding structured historical `tool_use` / `tool_result`
+blocks that SRDCloud rejects in follow-up requests. Set `flattenToolMessages` to
+`false` only when diagnosing a future upstream that supports structured replay.
 
 These commands are conveniences for updating plugin options from the terminal. If you already manage the same options in CCR Desktop's UI, use the UI and restart CCR Desktop instead.
 
@@ -72,7 +70,7 @@ Default option content:
   "clientType": "codefree-o",
   "clientVersion": "1.4.0",
   "discoverModelLimits": false,
-  "flattenToolMessages": false,
+  "flattenToolMessages": true,
   "logLevel": "warn",
   "logMaxBytes": 5242880,
   "logMaxFiles": 3,

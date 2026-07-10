@@ -9,6 +9,11 @@
 - Improved debug diagnostics with privacy-safe runtime-local request
   fingerprints, explicit limit-source and cache-state metadata, and isolation so
   diagnostic failures cannot block request forwarding.
+- Enabled historical tool-message flattening by default because SRDCloud rejects
+  follow-up requests that replay structured tool calls and results.
+- Preserved operation names, bounded parameter summaries, outcomes, and results
+  in flattened history to reduce repeated tool calls without restoring the
+  unsupported structured protocol.
 
 ## 0.2.0 - 2026-07-09
 

@@ -421,7 +421,33 @@ function sanitizeLiteralToolTranscripts(text) {
     .replace(/\[tool_result\s+id=([^\]]+)\]/g, "Observation from previous internal operation:");
 }
 
-function flattenToolBlock(block) {
+function operationParameters(input) {
+  const serialized = stringifyJson(input);
+  const maxCharacters = 2048;
+  if (serialized.length <= maxCharacters) {
+    return serialized;
+  }
+  return `${serialized.slice(0, maxCharacters)}… [truncated from ${serialized.length} characters]`;
+}
+
+function completedOperationText(block, operation) {
+  const result = blockTextContent(block.content);
+  if (!operation) {
+    return [
+      "Observation from previous internal operation:",
+      result
+    ].filter((line) => line !== "").join("\n");
+  }
+
+  return [
+    `Completed internal operation ${stringifyJson(operation.name)}.`,
+    `Parameters: ${operationParameters(operation.input)}`,
+    `Outcome: ${block.is_error === true ? "failed" : "succeeded"}`,
+    ...(result === "" ? [] : ["Result:", result])
+  ].join("\n");
+}
+
+function flattenToolBlock(block, operations) {
   if (!isRecord(block) || typeof block.type !== "string") {
     if (isRecord(block) && typeof block.text === "string") {
       return {
@@ -433,16 +459,25 @@ function flattenToolBlock(block) {
   }
 
   if (block.type === "tool_use") {
+    if (typeof block.id === "string" && block.id) {
+      operations.set(block.id, {
+        input: block.input === undefined ? {} : block.input,
+        name: typeof block.name === "string" && block.name ? block.name : "unknown"
+      });
+    }
     return null;
   }
 
   if (block.type === "tool_result") {
+    const operation = typeof block.tool_use_id === "string"
+      ? operations.get(block.tool_use_id)
+      : undefined;
+    if (typeof block.tool_use_id === "string") {
+      operations.delete(block.tool_use_id);
+    }
     return {
       type: "text",
-      text: [
-        "Observation from previous internal operation:",
-        blockTextContent(block.content)
-      ].filter((line) => line !== "").join("\n")
+      text: completedOperationText(block, operation)
     };
   }
 
@@ -459,6 +494,7 @@ function flattenHistoricalToolMessages(messages) {
   if (!Array.isArray(messages)) {
     return messages;
   }
+  const operations = new Map();
   return messages.map((message) => {
     if (!isRecord(message)) {
       return message;
@@ -472,7 +508,9 @@ function flattenHistoricalToolMessages(messages) {
     if (!Array.isArray(message.content)) {
       return message;
     }
-    const content = message.content.map(flattenToolBlock).filter((block) => block !== null);
+    const content = message.content
+      .map((block) => flattenToolBlock(block, operations))
+      .filter((block) => block !== null);
     if (content.length === 0) {
       return null;
     }
@@ -500,7 +538,7 @@ function normalizeSRDCloudRequestBody(body, options = {}) {
   }
   normalized.messages = normalizeMessageContentBlocks(normalized.messages);
   normalized.messages = moveSystemMessagesToFrontForImages(normalized.messages);
-  if (options.flattenToolMessages) {
+  if (options.flattenToolMessages !== false) {
     normalized.messages = flattenHistoricalToolMessages(normalized.messages);
   }
   return normalized;
@@ -861,7 +899,7 @@ function createSRDCloudProviderPlugin(options = {}) {
       const body = endpointKind === "embeddings"
         ? normalizeEmbeddingRequestBody(sourceBody)
         : normalizeSRDCloudRequestBody(sourceBody, {
-          flattenToolMessages: pluginOptions.flattenToolMessages === true
+          flattenToolMessages: pluginOptions.flattenToolMessages !== false
         });
       const modelName = pluginOptions.modelName ||
         (isRecord(body) ? body.model || body.modelName : undefined) ||

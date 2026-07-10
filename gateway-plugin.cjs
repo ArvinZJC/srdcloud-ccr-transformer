@@ -96,7 +96,10 @@ function logGatewayPluginCreated(pluginConfig) {
 }
 
 function createGatewayPlugin(input = {}) {
-  const pluginConfig = resolvePluginConfig(input);
+  const pluginConfig = {
+    flattenToolMessages: true,
+    ...resolvePluginConfig(input)
+  };
   logGatewayPluginCreated(pluginConfig);
 
   return {
