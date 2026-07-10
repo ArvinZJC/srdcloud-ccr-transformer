@@ -9,6 +9,7 @@ const test = require("node:test");
 
 const {
   SRDCloudTransformer,
+  createModelLimitsCache,
   createSRDCloudProviderPlugin,
   decryptApiKey,
   discoverModelLimits,
@@ -267,6 +268,147 @@ test("discoverModelLimits reads SRDCloud model manager output token metadata", a
     clientVersion: "1.4.0",
     userId: "user-1"
   });
+});
+
+test("model limit cache shares concurrent discovery misses", async () => {
+  let fetchCount = 0;
+  let releaseFetch;
+  const fetchGate = new Promise((resolve) => {
+    releaseFetch = resolve;
+  });
+  const limits = {
+    "GLM-5.1-ctyun-oc": { maxOutputTokens: 16000, maxTokens: 112000 }
+  };
+  const cache = createModelLimitsCache({
+    discover: async () => {
+      fetchCount += 1;
+      await fetchGate;
+      return limits;
+    },
+    modelLimitsTtlMs: 60 * 60 * 1000,
+    now: () => 1000
+  });
+
+  const first = cache.get({});
+  const second = cache.get({});
+
+  assert.equal(fetchCount, 1);
+  releaseFetch();
+  assert.deepEqual(await first, { limits, state: "miss" });
+  assert.deepEqual(await second, { limits, state: "shared" });
+});
+
+test("model limit cache backs off after discovery failures", async () => {
+  let now = 0;
+  let fetchCount = 0;
+  const cache = createModelLimitsCache({
+    discover: async () => {
+      fetchCount += 1;
+      throw new Error(`failure-${fetchCount}`);
+    },
+    modelLimitsTtlMs: 1000,
+    now: () => now
+  });
+
+  const first = await cache.get({});
+  assert.equal(first.state, "failed");
+  assert.equal(first.error.message, "failure-1");
+  assert.equal(first.retryAfterMs, 30000);
+
+  now = 29999;
+  assert.deepEqual(await cache.get({}), { limits: {}, state: "backoff" });
+  assert.equal(fetchCount, 1);
+
+  now = 30000;
+  const second = await cache.get({});
+  assert.equal(second.state, "failed");
+  assert.equal(second.retryAfterMs, 60000);
+  assert.equal(fetchCount, 2);
+});
+
+test("model limit cache shares discovery failures", async () => {
+  let fetchCount = 0;
+  let rejectFetch;
+  const fetchGate = new Promise((_resolve, reject) => {
+    rejectFetch = reject;
+  });
+  const cache = createModelLimitsCache({
+    discover: async () => {
+      fetchCount += 1;
+      return fetchGate;
+    },
+    modelLimitsTtlMs: 1000,
+    now: () => 0
+  });
+
+  const first = cache.get({});
+  const second = cache.get({});
+  rejectFetch(new Error("metadata unavailable"));
+
+  const firstResult = await first;
+  const secondResult = await second;
+  assert.equal(fetchCount, 1);
+  assert.equal(firstResult.state, "failed");
+  assert.equal(firstResult.error.message, "metadata unavailable");
+  assert.equal(firstResult.retryAfterMs, 30000);
+  assert.deepEqual(secondResult, { limits: {}, state: "shared-failed" });
+});
+
+test("model limit cache caps cooldown and resets it after success", async () => {
+  let now = 0;
+  let shouldFail = true;
+  const limits = {
+    "GLM-5.1-ctyun-oc": { maxOutputTokens: 16000, maxTokens: 112000 }
+  };
+  const cache = createModelLimitsCache({
+    discover: async () => {
+      if (shouldFail) {
+        throw new Error("unavailable");
+      }
+      return limits;
+    },
+    modelLimitsTtlMs: 1000,
+    now: () => now
+  });
+
+  const expectedDelays = [30000, 60000, 120000, 240000, 300000, 300000];
+  for (const expectedDelay of expectedDelays) {
+    const failed = await cache.get({});
+    assert.equal(failed.retryAfterMs, expectedDelay);
+    now += expectedDelay;
+  }
+
+  shouldFail = false;
+  assert.deepEqual(await cache.get({}), { limits, state: "miss" });
+  now += 1000;
+  shouldFail = true;
+  const failedAfterReset = await cache.get({});
+  assert.equal(failedAfterReset.retryAfterMs, 30000);
+});
+
+test("model limit cache does not reuse expired limits after refresh failure", async () => {
+  let now = 0;
+  let shouldFail = false;
+  const limits = {
+    "GLM-5.1-ctyun-oc": { maxOutputTokens: 16000, maxTokens: 112000 }
+  };
+  const cache = createModelLimitsCache({
+    discover: async () => {
+      if (shouldFail) {
+        throw new Error("refresh failed");
+      }
+      return limits;
+    },
+    modelLimitsTtlMs: 1000,
+    now: () => now
+  });
+
+  assert.deepEqual(await cache.get({}), { limits, state: "miss" });
+  now = 1000;
+  shouldFail = true;
+  const refresh = await cache.get({});
+  assert.deepEqual(refresh.limits, {});
+  assert.equal(refresh.state, "failed");
 });
 
 test("normalizeSRDCloudRequestBody converts Anthropic image blocks to OpenAI image_url blocks", () => {
@@ -576,6 +718,327 @@ test("provider hook clamps chat max_tokens with discovered model maxOutputTokens
 
   assert.equal(transformed.ok, true);
   assert.equal(transformed.value.body.max_tokens, 16000);
+});
+
+test("provider hook logs runtime-local fingerprints and limit decisions", async () => {
+  const debugEvents = [];
+  const plugin = createSRDCloudProviderPlugin({
+    apiKey: "secret-key",
+    credentials: null,
+    discoverModelLimits: true,
+    logger: {
+      debug(message, metadata) {
+        debugEvents.push([message, metadata]);
+      }
+    },
+    logLevel: "debug",
+    modelLimitsFetch: async () => ({
+      ok: true,
+      async json() {
+        return {
+          data: [{
+            modelName: "GLM-5.1-ctyun-oc",
+            maxTokens: 112000,
+            maxOutputTokens: 16000
+          }],
+          optResult: 0
+        };
+      }
+    }),
+    providerName: "provider-srdcloud::openai_responses",
+    userId: "user-1"
+  });
+  const transform = (content) => plugin.transformRequest({
+    request: {
+      body: {
+        max_tokens: 32000,
+        messages: [{ role: "user", content }],
+        model: "srdcloud/GLM-5.1-ctyun-oc"
+      }
+    },
+    targetProviderConfig: { baseurl: "https://www.srdcloud.cn" },
+    upstreamRequest: {
+      body: {},
+      headers: {},
+      url: "https://old.example/v1/chat/completions"
+    }
+  });
+
+  await transform("private prompt alpha");
+  await transform("private prompt alpha");
+  await transform("private prompt beta");
+
+  const metadata = debugEvents.map(([, value]) => value);
+  assert.equal(metadata[0].incomingMaxTokens, 32000);
+  assert.equal(metadata[0].outgoingMaxTokens, 16000);
+  assert.equal(metadata[0].discoveredMaxInputTokens, 112000);
+  assert.equal(metadata[0].discoveredMaxOutputTokens, 16000);
+  assert.deepEqual(metadata[0].maxTokenLimitSources, ["discovered"]);
+  assert.equal(metadata[0].modelLimitsCache, "miss");
+  assert.equal(metadata[1].modelLimitsCache, "fresh");
+  assert.match(metadata[0].requestFingerprint, /^[a-f0-9]{16}$/);
+  assert.equal(metadata[0].requestFingerprint, metadata[1].requestFingerprint);
+  assert.notEqual(metadata[1].requestFingerprint, metadata[2].requestFingerprint);
+  assert.equal(JSON.stringify(metadata).includes("private prompt"), false);
+  assert.equal(JSON.stringify(metadata).includes("secret-key"), false);
+});
+
+test("provider hook forwards without a fingerprint when key generation fails", async (t) => {
+  const debugEvents = [];
+  t.mock.method(crypto, "randomBytes", () => {
+    throw new Error("entropy unavailable");
+  });
+
+  const plugin = createSRDCloudProviderPlugin({
+    apiKey: "secret-key",
+    credentials: null,
+    logger: {
+      debug(message, metadata) {
+        debugEvents.push([message, metadata]);
+      }
+    },
+    logLevel: "debug",
+    providerName: "provider-srdcloud::openai_responses",
+    userId: "user-1"
+  });
+  const transformed = await plugin.transformRequest({
+    request: {
+      body: {
+        messages: [{ role: "user", content: "private prompt" }],
+        model: "srdcloud/GLM-5.1"
+      }
+    },
+    targetProviderConfig: { baseurl: "https://www.srdcloud.cn" },
+    upstreamRequest: {
+      body: {},
+      headers: {},
+      url: "https://old.example/v1/chat/completions"
+    }
+  });
+
+  assert.equal(transformed.ok, true);
+  assert.equal(transformed.value.body.messages[0].content, "private prompt");
+  assert.equal(debugEvents.length, 1);
+  assert.equal(debugEvents[0][1].requestFingerprint, undefined);
+  assert.equal(debugEvents[0][1].body.messageCount, 1);
+});
+
+test("provider hook skips fingerprint key generation outside debug logging", (t) => {
+  let randomBytesCalls = 0;
+  t.mock.method(crypto, "randomBytes", () => {
+    randomBytesCalls += 1;
+    throw new Error("entropy unavailable");
+  });
+
+  assert.doesNotThrow(() => createSRDCloudProviderPlugin({
+    apiKey: "secret-key",
+    credentials: null,
+    logLevel: "warn",
+    providerName: "provider-srdcloud::openai_responses",
+    userId: "user-1"
+  }));
+  assert.equal(randomBytesCalls, 0);
+});
+
+test("provider hook forwards when diagnostic serialization fails", async () => {
+  const debugEvents = [];
+  const cyclic = {};
+  cyclic.self = cyclic;
+  const plugin = createSRDCloudProviderPlugin({
+    apiKey: "secret-key",
+    credentials: null,
+    logger: {
+      debug(message, metadata) {
+        debugEvents.push([message, metadata]);
+      }
+    },
+    logLevel: "debug",
+    providerName: "provider-srdcloud::openai_responses",
+    userId: "user-1"
+  });
+  const transformed = await plugin.transformRequest({
+    request: {
+      body: {
+        messages: [{ role: "user", content: "private prompt" }],
+        model: "srdcloud/GLM-5.1",
+        diagnosticTrap: cyclic
+      }
+    },
+    targetProviderConfig: { baseurl: "https://www.srdcloud.cn" },
+    upstreamRequest: {
+      body: {},
+      headers: {},
+      url: "https://old.example/v1/chat/completions"
+    }
+  });
+
+  assert.equal(transformed.ok, true);
+  assert.equal(transformed.value.body.diagnosticTrap, cyclic);
+  assert.equal(debugEvents.length, 1);
+  assert.equal(debugEvents[0][1].body, undefined);
+  assert.equal(debugEvents[0][1].requestFingerprint, undefined);
+});
+
+test("provider hook debug metadata excludes tool, system, and image content", async () => {
+  const debugEvents = [];
+  const sentinels = {
+    image: "PRIVATE_IMAGE_SENTINEL_7f86",
+    system: "PRIVATE_SYSTEM_SENTINEL_4c21",
+    toolResult: "PRIVATE_TOOL_RESULT_SENTINEL_9a53"
+  };
+  const plugin = createSRDCloudProviderPlugin({
+    apiKey: "secret-key",
+    credentials: null,
+    logger: {
+      debug(message, metadata) {
+        debugEvents.push([message, metadata]);
+      }
+    },
+    logLevel: "debug",
+    providerName: "provider-srdcloud::openai_responses",
+    userId: "user-1"
+  });
+  const transformed = await plugin.transformRequest({
+    request: {
+      body: {
+        messages: [
+          { role: "system", content: sentinels.system },
+          {
+            role: "user",
+            content: [{
+              type: "image",
+              source: {
+                type: "base64",
+                media_type: "image/png",
+                data: sentinels.image
+              }
+            }]
+          },
+          {
+            role: "user",
+            content: [{ type: "tool_result", content: sentinels.toolResult }]
+          }
+        ],
+        model: "srdcloud/GLM-5.1",
+        system: sentinels.system
+      }
+    },
+    targetProviderConfig: { baseurl: "https://www.srdcloud.cn" },
+    upstreamRequest: {
+      body: {},
+      headers: {},
+      url: "https://old.example/v1/chat/completions"
+    }
+  });
+
+  assert.equal(transformed.ok, true);
+  const serializedMetadata = JSON.stringify(debugEvents);
+  for (const sentinel of Object.values(sentinels)) {
+    assert.equal(serializedMetadata.includes(sentinel), false);
+  }
+  assert.equal(debugEvents[0][1].body.hasImage, true);
+  assert.equal(debugEvents[0][1].body.hasToolResult, true);
+  assert.equal(debugEvents[0][1].body.systemType, "string");
+});
+
+function countedBody(counter) {
+  return {
+    max_tokens: 32000,
+    messages: [{ role: "user", content: "private prompt" }],
+    model: "srdcloud/GLM-5.1-ctyun-oc",
+    toJSON() {
+      counter.count += 1;
+      return {
+        max_tokens: this.max_tokens,
+        messages: this.messages,
+        model: this.model
+      };
+    }
+  };
+}
+
+test("provider hook serializes diagnostics once only at debug level", async () => {
+  const transform = (plugin, body) => plugin.transformRequest({
+    request: { body },
+    targetProviderConfig: { baseurl: "https://www.srdcloud.cn" },
+    upstreamRequest: {
+      body: {},
+      headers: {},
+      url: "https://old.example/v1/chat/completions"
+    }
+  });
+  const debugCounter = { count: 0 };
+  const debugPlugin = createSRDCloudProviderPlugin({
+    apiKey: "secret-key",
+    credentials: null,
+    logger: { debug() {} },
+    logLevel: "debug",
+    providerName: "provider-srdcloud::openai_responses",
+    userId: "user-1"
+  });
+  await transform(debugPlugin, countedBody(debugCounter));
+  assert.equal(debugCounter.count, 1);
+
+  const warnCounter = { count: 0 };
+  const warnPlugin = createSRDCloudProviderPlugin({
+    apiKey: "secret-key",
+    credentials: null,
+    logger: { warn() {} },
+    logLevel: "warn",
+    providerName: "provider-srdcloud::openai_responses",
+    userId: "user-1"
+  });
+  await transform(warnPlugin, countedBody(warnCounter));
+  assert.equal(warnCounter.count, 0);
+});
+
+test("provider hook applies configured caps during model discovery failure cooldown", async () => {
+  let fetchCount = 0;
+  const warnings = [];
+  const plugin = createSRDCloudProviderPlugin({
+    apiKey: "secret-key",
+    credentials: null,
+    discoverModelLimits: true,
+    logger: {
+      warn(message, metadata) {
+        warnings.push([message, metadata]);
+      }
+    },
+    logLevel: "warn",
+    maxTokensCap: 12000,
+    now: () => 0,
+    modelLimitsFetch: async () => {
+      fetchCount += 1;
+      return { ok: false, status: 503, statusText: "Busy" };
+    },
+    providerName: "provider-srdcloud::openai_responses",
+    userId: "user-1"
+  });
+  const args = {
+    request: {
+      body: {
+        max_tokens: 32000,
+        messages: [{ role: "user", content: "hello" }],
+        model: "srdcloud/GLM-5.1-ctyun-oc"
+      }
+    },
+    targetProviderConfig: { baseurl: "https://www.srdcloud.cn" },
+    upstreamRequest: {
+      body: {},
+      headers: {},
+      url: "https://old.example/v1/chat/completions"
+    }
+  };
+
+  const first = await plugin.transformRequest(args);
+  const second = await plugin.transformRequest(args);
+
+  assert.equal(first.value.body.max_tokens, 12000);
+  assert.equal(second.value.body.max_tokens, 12000);
+  assert.equal(fetchCount, 1);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0][0], /model discovery failed/);
+  assert.equal(warnings[0][1].retryAfterMs, 30000);
 });
 
 test("provider hook drops internal x-codefree-sub-service while preserving session affinity", async () => {

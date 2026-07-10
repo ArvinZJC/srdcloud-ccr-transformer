@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Hardened model-limit discovery with single-flight refreshes, bounded retry
+  cooldowns, and safe fallback to configured output limits when discovery fails.
+- Improved debug diagnostics with privacy-safe runtime-local request
+  fingerprints, explicit limit-source and cache-state metadata, and isolation so
+  diagnostic failures cannot block request forwarding.
+
 ## 0.2.0 - 2026-07-09
 
 ### Added

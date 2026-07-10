@@ -93,6 +93,8 @@ On a healthy restart with debug logging, the log should contain:
 - `gateway plugin created`
 - `provider hook transformed request`
 
+Debug request metadata includes a runtime-local `requestFingerprint`, the incoming and outgoing `max_tokens` values, the discovered model limits, the active limit sources, and the model-limit cache state. Matching fingerprints within one CCR runtime identify identical transformed request bodies without logging their content. Fingerprints change after CCR restarts.
+
 For request failures, compare the CCR Desktop request log with this extension log by timestamp. A transformed request usually means the extension ran and the remaining failure is likely upstream or provider-side. For image requests, debug metadata should include `hasImage:true`; if it does not, restart CCR Desktop and confirm the local extension was reloaded.
 
 Logs rotate automatically. Defaults are `logMaxBytes: 5242880` and `logMaxFiles: 3`.
