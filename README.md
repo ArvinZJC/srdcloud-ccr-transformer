@@ -6,10 +6,6 @@
 
 `srdcloud-ccr-transformer` is a local [Claude Code Router (CCR) Desktop 3.x](https://github.com/musistudio/claude-code-router) extension for routing Claude Code requests to SRDCloud CodeFree.
 
-Use this project when you previously relied on the CCR 2.x [`codefree-helper`](https://www.npmjs.com/package/codefree-helper) transformer and now need the same SRDCloud behavior in CCR Desktop 3.x. The restored transformer is kept as readable source and wrapped as a local CCR extension.
-
-Restoration provenance is recorded in `docs/provenance/srdcloud-transformer.md`. The original dependency file remains under ignored `node_modules` and should not be force-added.
-
 ## What It Does
 
 - Rewrites CCR chat traffic to the SRDCloud CodeFree chat service.
