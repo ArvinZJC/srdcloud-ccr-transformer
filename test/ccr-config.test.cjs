@@ -48,6 +48,7 @@ test("withSRDCloudCoreGatewayPlugin writes a module plugin into the saved wrappe
   const projectRoot = path.resolve("/repo");
   const { appConfig: nextConfig, gatewayPlugin } = withSRDCloudCoreGatewayPlugin(appConfig, {
     pluginConfigDefaults: {
+      fusionVisionProviderName: "provider-srdcloud-e5357f9414::openai_chat_completions",
       logFile: "/logs/srdcloud-transformer.log",
       logLevel: "debug"
     },
@@ -58,6 +59,7 @@ test("withSRDCloudCoreGatewayPlugin writes a module plugin into the saved wrappe
     config: {
       authHeader: "Bearer configured",
       flattenToolMessages: true,
+      fusionVisionProviderName: "provider-srdcloud-e5357f9414::openai_chat_completions",
       logFile: "/logs/srdcloud-transformer.log",
       logLevel: "debug",
       providerName: "provider-srdcloud-e5357f9414::openai_responses"
@@ -69,6 +71,7 @@ test("withSRDCloudCoreGatewayPlugin writes a module plugin into the saved wrappe
   assert.deepEqual(nextConfig.plugins[0].config, {
     authHeader: "Bearer configured",
     flattenToolMessages: true,
+    fusionVisionProviderName: "provider-srdcloud-e5357f9414::openai_chat_completions",
     logFile: "/logs/srdcloud-transformer.log",
     logLevel: "debug"
   });
