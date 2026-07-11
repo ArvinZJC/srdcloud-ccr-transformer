@@ -1362,3 +1362,269 @@ test("transformResponseOut is a pass-through", async () => {
 
   assert.equal(await transformer.transformResponseOut(response, {}), response);
 });
+
+test("provider hook sends CCR canonical Fusion tools instead of hosted web search", async () => {
+  const plugin = createSRDCloudProviderPlugin({
+    credentials: null,
+    providerName: "provider-srdcloud::openai_responses",
+    userId: "user-1"
+  });
+  const transformed = await plugin.transformRequest({
+    config: {
+      providers: [{ name: "provider-srdcloud::openai_responses", type: "openai_responses" }],
+      virtualModelProfiles: [{
+        enabled: true,
+        key: "fusion-search",
+        match: { exactAliases: ["Fusion/search-model"], prefixes: [], suffixes: [] },
+        execution: { matchWebSearch: true },
+        metadata: { fusionWebSearch: { provider: "browser" } }
+      }]
+    },
+    model: "GLM-5.1",
+    request: {
+      body: {
+        model: "Fusion/search-model",
+        messages: [{ role: "user", content: "search" }],
+        tools: [{ type: "web_search_20250305", name: "web_search" }]
+      }
+    },
+    sourceAdapterKey: "anthropic_messages",
+    standardRequest: {
+      model: "provider-srdcloud::openai_responses/GLM-5.1",
+      instructions: "Use the internal search function.",
+      input: [{
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text: "search" }]
+      }],
+      tools: [{
+        type: "function",
+        name: "search_model_web_search",
+        input_schema: { type: "object", properties: { prompt: { type: "string" } } }
+      }]
+    },
+    targetProviderConfig: { baseurl: "https://www.srdcloud.cn" },
+    upstreamRequest: {
+      body: { model: "GLM-5.1", input: "wrong" },
+      headers: {},
+      url: "https://old.example/v1/responses"
+    }
+  });
+
+  assert.equal(transformed.ok, true);
+  assert.equal(transformed.value.body.model, "GLM-5.1");
+  assert.equal(transformed.value.body.system, "Use the internal search function.");
+  assert.equal(transformed.value.body.tools[0].function.name, "search_model_web_search");
+  assert.equal(JSON.stringify(transformed.value.body).includes("web_search_20250305"), false);
+});
+
+test("provider hook keeps non-Fusion direct images on the original body path", async () => {
+  const plugin = createSRDCloudProviderPlugin({ credentials: null, userId: "user-1" });
+  const transformed = await plugin.transformRequest({
+    config: { virtualModelProfiles: [] },
+    request: {
+      body: {
+        model: "srdcloud/Qwen3.5-122B-A10B",
+        messages: [{
+          role: "user",
+          content: [{
+            type: "image",
+            source: { type: "base64", media_type: "image/png", data: "image-data" }
+          }]
+        }]
+      }
+    },
+    sourceAdapterKey: "anthropic_messages",
+    standardRequest: { model: "Qwen3.5-122B-A10B", input: [] },
+    targetProviderConfig: {},
+    upstreamRequest: {
+      body: { model: "Qwen3.5-122B-A10B", input: [] },
+      headers: {},
+      url: "https://old.example/v1/responses"
+    }
+  });
+
+  assert.equal(transformed.ok, true);
+  assert.equal(transformed.value.body.messages[0].content[0].type, "image_url");
+});
+
+test("Chat Completions compatibility hook preserves image_url requests", async () => {
+  const plugin = createSRDCloudProviderPlugin({
+    apiKey: "secret-key",
+    credentials: null,
+    providerName: "provider-srdcloud::openai_chat_completions",
+    userId: "user-1"
+  });
+  const imageUrl = "data:image/png;base64,aW1hZ2UtZGF0YQ==";
+  const transformed = await plugin.transformRequest({
+    config: { virtualModelProfiles: [] },
+    request: {
+      body: {
+        model: "srdcloud/Qwen3.5-122B-A10B",
+        messages: [{
+          role: "user",
+          content: [{
+            type: "image_url",
+            image_url: { url: imageUrl }
+          }]
+        }]
+      }
+    },
+    sourceAdapterKey: "openai_chat_completions",
+    targetProviderConfig: { baseurl: "https://www.srdcloud.cn" },
+    upstreamRequest: {
+      body: {},
+      headers: { "content-type": "application/json" },
+      url: "https://old.example/v1/chat/completions"
+    }
+  });
+
+  assert.equal(transformed.ok, true);
+  assert.equal(transformed.value.body.model, "Qwen3.5-122B-A10B");
+  assert.deepEqual(transformed.value.body.messages[0].content[0], {
+    type: "image_url",
+    image_url: { url: imageUrl }
+  });
+  assert.equal(transformed.value.headers.apiKey, "secret-key");
+  assert.equal(transformed.value.headers.userId, "user-1");
+  assert.equal(
+    transformed.value.url,
+    "https://www.srdcloud.cn/api/acbackend/codechat/v1/completions"
+  );
+});
+
+test("provider hook logs structural Fusion diagnostics without content", async () => {
+  const events = [];
+  const plugin = createSRDCloudProviderPlugin({
+    credentials: null,
+    logLevel: "debug",
+    logger: {
+      debug(message, metadata) {
+        events.push([message, metadata]);
+      },
+      warn(message, metadata) {
+        events.push([message, metadata]);
+      }
+    },
+    userId: "user-1"
+  });
+  const privateEvidence = "PRIVATE_SEARCH_EVIDENCE";
+  await plugin.transformRequest({
+    config: {
+      virtualModelProfiles: [{
+        enabled: true,
+        match: { exactAliases: ["Fusion/search"], prefixes: [], suffixes: [] },
+        execution: { matchWebSearch: true },
+        metadata: { fusionWebSearch: {} }
+      }]
+    },
+    request: { body: { model: "Fusion/search", messages: [] } },
+    sourceAdapterKey: "anthropic_messages",
+    standardRequest: {
+      model: "GLM",
+      instructions: privateEvidence,
+      input: [{
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text: "private" }]
+      }],
+      tools: []
+    },
+    targetProviderConfig: {},
+    upstreamRequest: { body: {}, headers: {}, url: "https://old.example/v1/responses" }
+  });
+
+  const metadata = events.at(-1)[1];
+  assert.equal(metadata.requestMode, "fusion-canonical");
+  assert.equal(metadata.virtualProfileMatched, true);
+  assert.equal(metadata.canonicalMessageCount, 1);
+  assert.equal(metadata.canonicalToolCount, 0);
+  assert.equal(metadata.hasFusionWebSearch, true);
+  assert.equal(JSON.stringify(events).includes(privateEvidence), false);
+  assert.equal(JSON.stringify(events).includes('"private"'), false);
+});
+
+test("provider hook warns and forwards on older Fusion hook contexts", async () => {
+  const warnings = [];
+  const plugin = createSRDCloudProviderPlugin({
+    credentials: null,
+    logger: {
+      warn(message, metadata) {
+        warnings.push([message, metadata]);
+      }
+    },
+    logLevel: "warn",
+    userId: "user-1"
+  });
+  const transformed = await plugin.transformRequest({
+    config: {
+      virtualModelProfiles: [{
+        enabled: true,
+        match: { exactAliases: ["Fusion/legacy"], prefixes: [], suffixes: [] }
+      }]
+    },
+    request: {
+      body: {
+        model: "Fusion/legacy",
+        messages: [{ role: "user", content: "hi" }]
+      }
+    },
+    sourceAdapterKey: "anthropic_messages",
+    targetProviderConfig: {},
+    upstreamRequest: { body: {}, headers: {}, url: "https://old.example/v1/responses" }
+  });
+
+  assert.equal(transformed.ok, true);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0][0], /Fusion canonical request unavailable/);
+  assert.deepEqual(warnings[0][1], {
+    requestMode: "fusion-legacy-fallback",
+    sourceAdapterKey: "anthropic_messages"
+  });
+});
+
+test("provider hook honours structured and flattened Fusion follow-up policy", async () => {
+  const config = {
+    virtualModelProfiles: [{
+      enabled: true,
+      match: { exactAliases: ["Fusion/tool-loop"], prefixes: [], suffixes: [] }
+    }]
+  };
+  const args = {
+    config,
+    request: { body: { model: "Fusion/tool-loop", messages: [] } },
+    sourceAdapterKey: "anthropic_messages",
+    standardRequest: {
+      model: "GLM",
+      input: [
+        {
+          type: "message",
+          role: "assistant",
+          content: [{ type: "tool_use", id: "call-1", name: "internal_lookup", input: {} }]
+        },
+        {
+          type: "message",
+          role: "user",
+          content: [{ type: "tool_result", tool_use_id: "call-1", content: "lookup result" }]
+        }
+      ],
+      tools: [{ type: "function", name: "internal_lookup", input_schema: { type: "object" } }]
+    },
+    targetProviderConfig: {},
+    upstreamRequest: { body: {}, headers: {}, url: "https://old.example/v1/responses" }
+  };
+  const flattened = await createSRDCloudProviderPlugin({
+    credentials: null,
+    userId: "user-1"
+  }).transformRequest(args);
+  const structured = await createSRDCloudProviderPlugin({
+    credentials: null,
+    flattenToolMessages: false,
+    userId: "user-1"
+  }).transformRequest(args);
+
+  assert.equal(JSON.stringify(flattened.value.body.messages).includes('"tool_use"'), false);
+  assert.match(JSON.stringify(flattened.value.body.messages), /Completed internal operation/);
+  assert.equal(structured.value.body.messages[0].content[0].type, "tool_use");
+  assert.equal(structured.value.body.messages[1].content[0].type, "tool_result");
+});

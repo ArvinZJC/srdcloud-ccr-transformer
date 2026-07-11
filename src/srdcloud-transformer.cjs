@@ -6,6 +6,8 @@ const https = require("node:https");
 const os = require("node:os");
 const path = require("node:path");
 
+const { selectSRDCloudChatBody } = require("./ccr-fusion.cjs");
+
 const DEFAULT_BASE_URL = "https://www.srdcloud.cn";
 const DEFAULT_AUTH_HEADER = "Bearer codefree";
 const DEFAULT_CLIENT_TYPE = "codefree-o";
@@ -892,17 +894,54 @@ function createSRDCloudProviderPlugin(options = {}) {
         }
       };
     },
-    async transformRequest({ request, targetProviderConfig, upstreamRequest }) {
-      const sourceBody = isRecord(request?.body) ? request.body : upstreamRequest.body;
+    async transformRequest({
+      config,
+      model,
+      request,
+      sourceAdapterKey,
+      standardRequest,
+      targetProviderConfig,
+      upstreamRequest
+    }) {
+      const requestBody = isRecord(request?.body) ? request.body : upstreamRequest.body;
       const endpointKind = endpointKindFromUrl(upstreamRequest.url);
       const baseUrl = providerBaseUrl(targetProviderConfig);
+      const selected = endpointKind === "chat"
+        ? selectSRDCloudChatBody({
+          config,
+          requestBody,
+          sourceAdapterKey,
+          standardRequest,
+          upstreamBody: upstreamRequest.body
+        })
+        : {
+          ok: true,
+          body: requestBody,
+          diagnostics: {
+            requestMode: "direct",
+            virtualProfileMatched: false,
+            ...(typeof sourceAdapterKey === "string" ? { sourceAdapterKey } : {})
+          }
+        };
+      if (!selected.ok) {
+        return selected;
+      }
+      if (selected.diagnostics.requestMode === "fusion-legacy-fallback") {
+        logger.warn("[SRDCloudTransformer] Fusion canonical request unavailable", {
+          requestMode: selected.diagnostics.requestMode,
+          ...(selected.diagnostics.sourceAdapterKey
+            ? { sourceAdapterKey: selected.diagnostics.sourceAdapterKey }
+            : {})
+        });
+      }
       const body = endpointKind === "embeddings"
-        ? normalizeEmbeddingRequestBody(sourceBody)
-        : normalizeSRDCloudRequestBody(sourceBody, {
+        ? normalizeEmbeddingRequestBody(selected.body)
+        : normalizeSRDCloudRequestBody(selected.body, {
           flattenToolMessages: pluginOptions.flattenToolMessages !== false
         });
       const modelName = pluginOptions.modelName ||
         (isRecord(body) ? body.model || body.modelName : undefined) ||
+        model ||
         (isRecord(upstreamRequest.body) ? upstreamRequest.body.model || upstreamRequest.body.modelName : undefined);
       const modelLimits = endpointKind === "chat"
         ? await loadModelLimits(targetProviderConfig)
@@ -948,6 +987,7 @@ function createSRDCloudProviderPlugin(options = {}) {
           modelName,
           outgoingMaxTokens: limitDecision.outgoingMaxTokens,
           ...(requestFingerprint === undefined ? {} : { requestFingerprint }),
+          ...selected.diagnostics,
           url
         });
       }
