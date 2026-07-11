@@ -14,6 +14,7 @@
 - Strips CCR provider prefixes from model names before sending upstream.
 - Can discover CodeFree-O model limits from SRDCloud and clamp chat `max_tokens` to the discovered `maxOutputTokens`.
 - Converts Anthropic-style tool definitions from `input_schema` to OpenAI-style `function.parameters`.
+- Preserves CCR Fusion model composition for built-in vision, built-in web search, and custom MCP tools by forwarding CCR's resolved base model, capability instructions, function tools, and internal tool results to SRDCloud.
 - Converts Anthropic-style image blocks to SRDCloud-compatible `image_url` blocks and keeps system messages ahead of image messages for image-capable model requests.
 - Flattens historical tool messages by default because SRDCloud cannot replay Anthropic `tool_use` / `tool_result` blocks in later turns.
 - Writes controlled JSONL diagnostics without logging API keys or prompt bodies.
@@ -58,9 +59,22 @@ as neutral text while avoiding structured historical `tool_use` / `tool_result`
 blocks that SRDCloud rejects in follow-up requests. Set `flattenToolMessages` to
 `false` only when diagnosing a future upstream that supports structured replay.
 
+The extension applies compatibility automatically only when it can identify an
+enabled SRDCloud Fusion vision profile unambiguously and no direct base URL is
+configured. This advertises the Chat Completions capability required by affected
+CCR releases while preserving the primary Responses capability. Use this
+advanced opt-out only when validating a CCR release that resolves
+Responses-backed Fusion vision selectors itself:
+
+```json
+{
+  "fusionVisionCompatibility": false
+}
+```
+
 These commands are conveniences for updating plugin options from the terminal. If you already manage the same options in CCR Desktop's UI, use the UI and restart CCR Desktop instead.
 
-Supported plugin options include `providerName`, `userId`, `apiKey`, `authHeader`, `clientType`, `clientVersion`, `subService`, `sessionId`, `userAgent`, `modelName`, `maxTokensCap`, `modelMaxOutputTokens`, `discoverModelLimits`, `modelLimitsTtlMs`, `logLevel`, `logMaxBytes`, `logMaxFiles`, and `flattenToolMessages`.
+Supported plugin options include `providerName`, `userId`, `apiKey`, `authHeader`, `clientType`, `clientVersion`, `subService`, `sessionId`, `userAgent`, `modelName`, `maxTokensCap`, `modelMaxOutputTokens`, `discoverModelLimits`, `modelLimitsTtlMs`, `logLevel`, `logMaxBytes`, `logMaxFiles`, `flattenToolMessages`, and `fusionVisionCompatibility`.
 
 Default option content:
 
@@ -92,6 +106,8 @@ On a healthy restart with debug logging, the log should contain:
 - `provider hook transformed request`
 
 Debug request metadata includes a runtime-local `requestFingerprint`, the incoming and outgoing `max_tokens` values, the discovered model limits, the active limit sources, and the model-limit cache state. Matching fingerprints within one CCR runtime identify identical transformed request bodies without logging their content. Fingerprints change after CCR restarts.
+
+Fusion requests also report a structural `requestMode` of `fusion-canonical` or `fusion-legacy-fallback`, the source adapter, canonical message/tool counts, and capability booleans. A healthy current CCR Desktop Fusion request should use `fusion-canonical`; `fusion-legacy-fallback` means the gateway did not provide canonical virtual-model state and should be upgraded or reloaded before investigating the upstream service.
 
 For request failures, compare the CCR Desktop request log with this extension log by timestamp. A transformed request usually means the extension ran and the remaining failure is likely upstream or provider-side. For image requests, debug metadata should include `hasImage:true`; if it does not, restart CCR Desktop and confirm the local extension was reloaded.
 

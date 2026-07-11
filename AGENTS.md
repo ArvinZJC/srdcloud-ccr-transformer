@@ -7,6 +7,8 @@ This repository contains a CCR Desktop 3.x local extension for the SRDCloud Code
 - `index.cjs`: CCR wrapper extension entrypoint. Registers the provider hook and status route.
 - `gateway-plugin.cjs`: core gateway module-plugin fallback loaded by CCR at runtime.
 - `src/srdcloud-transformer.cjs`: readable restoration of the transformer, request normalization, logging, and provider-hook logic.
+- `src/ccr-fusion.cjs`: CCR virtual-model matching and canonical Fusion request projection for built-in vision, web search, and custom MCP tools.
+- `src/ccr-vision-compat.cjs`: removable CCR 3.x Fusion vision compatibility shim that advertises Chat Completions without replacing Responses.
 - `src/ccr-config.cjs`: helpers for generating/installing CCR Desktop config.
 - `scripts/install-ccr-config.cjs`: installer for updating CCR Desktop app config.
 - `test/*.test.cjs`: Node test-runner coverage for compatibility, config, gateway, and extension behavior.
@@ -34,6 +36,10 @@ Do not log secrets, prompt bodies, API keys, or full request payloads. Debug log
 Use `node:test` and `node:assert/strict`. Place tests in `test/*.test.cjs`, named after the unit or integration surface, for example `gateway-plugin.test.cjs`.
 
 When changing request normalization, add regression tests for transformed body shape and the affected compatibility surface. This includes historical tool-call contamination, image conversion and message ordering, embedding routing, and model-limit discovery or `max_tokens` clamping when relevant. Run both `npm test` and `npm run check` before handoff. Run `npm run check:provenance` when changing the reference dependency, restored behavior, or provenance metadata.
+
+When changing Fusion handling, preserve CCR's canonical `standardRequest` boundary instead of rebuilding capability state from the untouched client body. Add regression tests for exact, prefix, and suffix virtual-model matches; built-in web search and vision; custom MCP tools; canonical tool results; and non-Fusion direct-image isolation. Do not infer Fusion from tool count alone.
+
+Treat the Fusion vision compatibility shim as removable. Compatibility changes must preserve the primary Responses capability, remain idempotent, avoid compatibility-only direct writes to CCR saved configuration or generated gateway configuration, and include regression coverage for the explicit opt-out and complete shim removal. The existing ignored runtime bridge may carry derived compatibility-hook metadata needed by the gateway fallback when CCR normalises module-plugin configuration away.
 
 ## Commit & Pull Request Guidelines
 
