@@ -5,6 +5,9 @@ const path = require("node:path");
 
 const DEFAULT_PLUGIN_ID = "srdcloud-transformer";
 const DEFAULT_PROVIDER_PLUGIN_KEY = "srdcloud-target-adapter";
+const DEFAULT_PLUGIN_CONFIG = Object.freeze({
+  flattenToolMessages: true
+});
 
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -60,6 +63,7 @@ function writeGatewayPluginRuntimeConfig(pluginConfig, options = {}) {
 
 function buildGatewayModulePlugin({ appConfig, modulePath, pluginConfig = {}, pluginConfigDefaults = {} }) {
   const config = {
+    ...DEFAULT_PLUGIN_CONFIG,
     ...serializablePluginConfig(pluginConfigDefaults),
     ...serializablePluginConfig(pluginConfig)
   };
@@ -93,7 +97,10 @@ function withSRDCloudCoreGatewayPlugin(appConfig, options = {}) {
   const pluginId = options.pluginId || DEFAULT_PLUGIN_ID;
   const projectRoot = options.projectRoot || path.resolve(__dirname, "..");
   const modulePath = options.modulePath || gatewayPluginModulePath(projectRoot);
-  const pluginConfigDefaults = options.pluginConfigDefaults || {};
+  const pluginConfigDefaults = {
+    ...DEFAULT_PLUGIN_CONFIG,
+    ...serializablePluginConfig(options.pluginConfigDefaults || {})
+  };
   const nextConfig = structuredClone(appConfig);
   const plugins = Array.isArray(nextConfig.plugins) ? nextConfig.plugins : [];
   const pluginIndex = plugins.findIndex((plugin) => plugin?.id === pluginId);

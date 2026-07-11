@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Added comprehensive CCR Fusion model compatibility for built-in vision,
+  built-in web search, and custom MCP tools by preserving CCR's canonical
+  virtual-model request state at the SRDCloud provider boundary.
+- Added privacy-safe Fusion request-mode and capability diagnostics, with a
+  compatibility fallback marker for older CCR 3.x provider-hook contexts.
+
+### Changed
+
+- Automatically advertised the narrowly scoped Chat Completions capability
+  required for affected CCR Desktop 3.x built-in Fusion vision routing while
+  preserving the primary Responses capability.
+- Hardened model-limit discovery with single-flight refreshes, bounded retry
+  cooldowns, and safe fallback to configured output limits when discovery fails.
+- Improved debug diagnostics with privacy-safe runtime-local request
+  fingerprints, explicit limit-source and cache-state metadata, and isolation so
+  diagnostic failures cannot block request forwarding.
+- Enabled historical tool-message flattening by default because SRDCloud rejects
+  follow-up requests that replay structured tool calls and results.
+- Preserved operation names, bounded parameter summaries, outcomes, and results
+  in flattened history to reduce repeated tool calls without restoring the
+  unsupported structured protocol.
+
 ## 0.2.0 - 2026-07-09
 
 ### Added

@@ -6,6 +6,8 @@ const https = require("node:https");
 const os = require("node:os");
 const path = require("node:path");
 
+const { selectSRDCloudChatBody } = require("./ccr-fusion.cjs");
+
 const DEFAULT_BASE_URL = "https://www.srdcloud.cn";
 const DEFAULT_AUTH_HEADER = "Bearer codefree";
 const DEFAULT_CLIENT_TYPE = "codefree-o";
@@ -20,6 +22,8 @@ const CREDENTIALS_PATH = path.join(os.homedir(), ".codefree-cli/oauth_creds.json
 const VERSION_CACHE_FILE = path.join(os.homedir(), ".codefree-cli/.version_cache.json");
 const VERSION_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const MODEL_LIMITS_TTL_MS = 60 * 60 * 1000;
+const MODEL_LIMITS_RETRY_BASE_MS = 30 * 1000;
+const MODEL_LIMITS_RETRY_MAX_MS = 5 * 60 * 1000;
 
 const AES_KEY = Buffer.from("Xtpa6sS&+D.NAo%CP8LA:7pk", "utf8");
 const AES_IV = Buffer.from("%1KJIrl3!XUxr04V", "utf8");
@@ -133,6 +137,11 @@ function normalizeLogLevel(options = {}) {
   }
   const level = typeof options.logLevel === "string" ? options.logLevel.toLowerCase() : "warn";
   return hasOwn(LOG_LEVELS, level) ? level : "warn";
+}
+
+function isLogLevelEnabled(options = {}, level) {
+  const threshold = LOG_LEVELS[normalizeLogLevel(options)] ?? LOG_LEVELS.warn;
+  return threshold >= (LOG_LEVELS[level] ?? Number.POSITIVE_INFINITY);
 }
 
 function createLevelLogger(logger = console, level = "warn") {
@@ -414,7 +423,33 @@ function sanitizeLiteralToolTranscripts(text) {
     .replace(/\[tool_result\s+id=([^\]]+)\]/g, "Observation from previous internal operation:");
 }
 
-function flattenToolBlock(block) {
+function operationParameters(input) {
+  const serialized = stringifyJson(input);
+  const maxCharacters = 2048;
+  if (serialized.length <= maxCharacters) {
+    return serialized;
+  }
+  return `${serialized.slice(0, maxCharacters)}… [truncated from ${serialized.length} characters]`;
+}
+
+function completedOperationText(block, operation) {
+  const result = blockTextContent(block.content);
+  if (!operation) {
+    return [
+      "Observation from previous internal operation:",
+      result
+    ].filter((line) => line !== "").join("\n");
+  }
+
+  return [
+    `Completed internal operation ${stringifyJson(operation.name)}.`,
+    `Parameters: ${operationParameters(operation.input)}`,
+    `Outcome: ${block.is_error === true ? "failed" : "succeeded"}`,
+    ...(result === "" ? [] : ["Result:", result])
+  ].join("\n");
+}
+
+function flattenToolBlock(block, operations) {
   if (!isRecord(block) || typeof block.type !== "string") {
     if (isRecord(block) && typeof block.text === "string") {
       return {
@@ -426,16 +461,25 @@ function flattenToolBlock(block) {
   }
 
   if (block.type === "tool_use") {
+    if (typeof block.id === "string" && block.id) {
+      operations.set(block.id, {
+        input: block.input === undefined ? {} : block.input,
+        name: typeof block.name === "string" && block.name ? block.name : "unknown"
+      });
+    }
     return null;
   }
 
   if (block.type === "tool_result") {
+    const operation = typeof block.tool_use_id === "string"
+      ? operations.get(block.tool_use_id)
+      : undefined;
+    if (typeof block.tool_use_id === "string") {
+      operations.delete(block.tool_use_id);
+    }
     return {
       type: "text",
-      text: [
-        "Observation from previous internal operation:",
-        blockTextContent(block.content)
-      ].filter((line) => line !== "").join("\n")
+      text: completedOperationText(block, operation)
     };
   }
 
@@ -452,6 +496,7 @@ function flattenHistoricalToolMessages(messages) {
   if (!Array.isArray(messages)) {
     return messages;
   }
+  const operations = new Map();
   return messages.map((message) => {
     if (!isRecord(message)) {
       return message;
@@ -465,7 +510,9 @@ function flattenHistoricalToolMessages(messages) {
     if (!Array.isArray(message.content)) {
       return message;
     }
-    const content = message.content.map(flattenToolBlock).filter((block) => block !== null);
+    const content = message.content
+      .map((block) => flattenToolBlock(block, operations))
+      .filter((block) => block !== null);
     if (content.length === 0) {
       return null;
     }
@@ -493,7 +540,7 @@ function normalizeSRDCloudRequestBody(body, options = {}) {
   }
   normalized.messages = normalizeMessageContentBlocks(normalized.messages);
   normalized.messages = moveSystemMessagesToFrontForImages(normalized.messages);
-  if (options.flattenToolMessages) {
+  if (options.flattenToolMessages !== false) {
     normalized.messages = flattenHistoricalToolMessages(normalized.messages);
   }
   return normalized;
@@ -651,16 +698,62 @@ async function discoverModelLimits(options = {}) {
 function createModelLimitsCache(options = {}) {
   let cached = null;
   let cachedAt = 0;
+  let consecutiveFailures = 0;
+  let inFlight = null;
+  let nextRetryAt = 0;
+  const discover = options.discover || discoverModelLimits;
+  const now = typeof options.now === "function" ? options.now : Date.now;
   const ttlMs = normalizePositiveInteger(options.modelLimitsTtlMs, MODEL_LIMITS_TTL_MS);
+
+  function startDiscovery(discoveryOptions) {
+    const promise = (async () => {
+      try {
+        const limits = await discover(discoveryOptions);
+        cached = limits;
+        cachedAt = now();
+        consecutiveFailures = 0;
+        nextRetryAt = 0;
+        return { limits, ok: true };
+      } catch (error) {
+        consecutiveFailures += 1;
+        const retryAfterMs = Math.min(
+          MODEL_LIMITS_RETRY_BASE_MS * (2 ** (consecutiveFailures - 1)),
+          MODEL_LIMITS_RETRY_MAX_MS
+        );
+        nextRetryAt = now() + retryAfterMs;
+        return { error, limits: {}, ok: false, retryAfterMs };
+      }
+    })();
+    inFlight = promise;
+    promise.finally(() => {
+      if (inFlight === promise) {
+        inFlight = null;
+      }
+    });
+    return promise;
+  }
+
   return {
     async get(discoveryOptions) {
-      const now = Date.now();
-      if (cached && now - cachedAt < ttlMs) {
-        return cached;
+      const currentTime = now();
+      if (cached && currentTime - cachedAt < ttlMs) {
+        return { limits: cached, state: "fresh" };
       }
-      cached = await discoverModelLimits(discoveryOptions);
-      cachedAt = now;
-      return cached;
+
+      const shared = Boolean(inFlight);
+      if (!shared && currentTime < nextRetryAt) {
+        return { limits: {}, state: "backoff" };
+      }
+
+      const result = await (inFlight || startDiscovery(discoveryOptions));
+      if (result.ok) {
+        return { limits: result.limits, state: shared ? "shared" : "miss" };
+      }
+      return {
+        ...(shared ? {} : { error: result.error, retryAfterMs: result.retryAfterMs }),
+        limits: {},
+        state: shared ? "shared-failed" : "failed"
+      };
     }
   };
 }
@@ -672,23 +765,43 @@ function configuredModelLimit(options = {}, modelName) {
   return parsePositiveInteger(options.modelMaxOutputTokens[modelName]);
 }
 
-function clampMaxTokens(body, modelName, options = {}, discoveredLimits = {}) {
+function maxTokenDecision(body, modelName, options = {}, discoveredLimits = {}) {
   if (!isRecord(body) || !hasOwn(body, "max_tokens")) {
-    return body;
+    return {
+      body,
+      incomingMaxTokens: undefined,
+      maxTokenLimitSources: [],
+      outgoingMaxTokens: undefined
+    };
   }
+  const incomingMaxTokens = parsePositiveInteger(body.max_tokens);
   const candidates = [
-    parsePositiveInteger(body.max_tokens),
-    parsePositiveInteger(options.maxTokensCap),
-    configuredModelLimit(options, modelName),
-    parsePositiveInteger(discoveredLimits?.[modelName]?.maxOutputTokens)
-  ].filter((value) => value !== undefined);
+    ["incoming", incomingMaxTokens],
+    ["maxTokensCap", parsePositiveInteger(options.maxTokensCap)],
+    ["modelOverride", configuredModelLimit(options, modelName)],
+    ["discovered", parsePositiveInteger(discoveredLimits?.[modelName]?.maxOutputTokens)]
+  ].filter(([, value]) => value !== undefined);
   if (candidates.length === 0) {
-    return body;
+    return {
+      body,
+      incomingMaxTokens,
+      maxTokenLimitSources: [],
+      outgoingMaxTokens: undefined
+    };
   }
+  const outgoingMaxTokens = Math.min(...candidates.map(([, value]) => value));
   return {
-    ...body,
-    max_tokens: Math.min(...candidates)
+    body: { ...body, max_tokens: outgoingMaxTokens },
+    incomingMaxTokens,
+    maxTokenLimitSources: candidates
+      .filter(([, value]) => value === outgoingMaxTokens)
+      .map(([source]) => source),
+    outgoingMaxTokens
   };
+}
+
+function clampMaxTokens(body, modelName, options = {}, discoveredLimits = {}) {
+  return maxTokenDecision(body, modelName, options, discoveredLimits).body;
 }
 
 function contentBlockTypes(content) {
@@ -698,7 +811,7 @@ function contentBlockTypes(content) {
   return content.map((block) => isRecord(block) && typeof block.type === "string" ? block.type : typeof block);
 }
 
-function bodyMetadata(body) {
+function bodyMetadata(body, serializedBody) {
   if (!isRecord(body)) {
     return { bodyType: typeof body };
   }
@@ -708,9 +821,9 @@ function bodyMetadata(body) {
   const contentTypes = messages.flatMap((message) => isRecord(message) ? contentBlockTypes(message.content) : []);
 
   return {
-    bodySizeBytes: Buffer.byteLength(JSON.stringify(body)),
+    bodySizeBytes: Buffer.byteLength(serializedBody),
     hasAssistantToolUse: contentTypes.includes("tool_use"),
-    hasCacheControl: JSON.stringify(body).includes('"cache_control"'),
+    hasCacheControl: serializedBody.includes('"cache_control"'),
     hasImage: contentTypes.includes("image") || contentTypes.includes("image_url") || contentTypes.includes("input_image"),
     hasToolResult: contentTypes.includes("tool_result"),
     messageCount: messages.length,
@@ -734,32 +847,39 @@ function createSRDCloudProviderPlugin(options = {}) {
   };
   const logger = createControlledLogger(options);
   const modelLimitsCache = createModelLimitsCache(options);
+  const debugEnabled = isLogLevelEnabled(options, "debug");
+  let fingerprintKey;
+  if (debugEnabled) {
+    try {
+      fingerprintKey = crypto.randomBytes(32);
+    } catch {
+      // Fingerprinting is diagnostic-only and must not block requests.
+    }
+  }
 
   async function loadModelLimits(targetProviderConfig) {
     if (pluginOptions.discoverModelLimits !== true) {
-      return {};
+      return { limits: {}, state: "disabled" };
     }
-    if (!pluginOptions.apiKey && !providerApiKey(targetProviderConfig)) {
-      return {};
+    if ((!pluginOptions.apiKey && !providerApiKey(targetProviderConfig)) || !pluginOptions.userId) {
+      return { limits: {}, state: "disabled" };
     }
-    if (!pluginOptions.userId) {
-      return {};
-    }
-    try {
-      return await modelLimitsCache.get({
-        apiKey: pluginOptions.apiKey || providerApiKey(targetProviderConfig),
-        baseUrl: providerBaseUrl(targetProviderConfig),
-        clientType: pluginOptions.clientType || DEFAULT_CLIENT_TYPE,
-        clientVersion: pluginOptions.clientVersion || DEFAULT_CLIENT_VERSION,
-        fetch: pluginOptions.modelLimitsFetch,
-        userId: pluginOptions.userId
-      });
-    } catch (error) {
+
+    const result = await modelLimitsCache.get({
+      apiKey: pluginOptions.apiKey || providerApiKey(targetProviderConfig),
+      baseUrl: providerBaseUrl(targetProviderConfig),
+      clientType: pluginOptions.clientType || DEFAULT_CLIENT_TYPE,
+      clientVersion: pluginOptions.clientVersion || DEFAULT_CLIENT_VERSION,
+      fetch: pluginOptions.modelLimitsFetch,
+      userId: pluginOptions.userId
+    });
+    if (result.state === "failed") {
       logger.warn("[SRDCloudTransformer] model discovery failed", {
-        message: error.message
+        message: result.error.message,
+        retryAfterMs: result.retryAfterMs
       });
-      return {};
     }
+    return { limits: result.limits, state: result.state };
   }
 
   return {
@@ -774,32 +894,103 @@ function createSRDCloudProviderPlugin(options = {}) {
         }
       };
     },
-    async transformRequest({ request, targetProviderConfig, upstreamRequest }) {
-      const sourceBody = isRecord(request?.body) ? request.body : upstreamRequest.body;
+    async transformRequest({
+      config,
+      model,
+      request,
+      sourceAdapterKey,
+      standardRequest,
+      targetProviderConfig,
+      upstreamRequest
+    }) {
+      const requestBody = isRecord(request?.body) ? request.body : upstreamRequest.body;
       const endpointKind = endpointKindFromUrl(upstreamRequest.url);
       const baseUrl = providerBaseUrl(targetProviderConfig);
+      const selected = endpointKind === "chat"
+        ? selectSRDCloudChatBody({
+          config,
+          requestBody,
+          sourceAdapterKey,
+          standardRequest,
+          upstreamBody: upstreamRequest.body
+        })
+        : {
+          ok: true,
+          body: requestBody,
+          diagnostics: {
+            requestMode: "direct",
+            virtualProfileMatched: false,
+            ...(typeof sourceAdapterKey === "string" ? { sourceAdapterKey } : {})
+          }
+        };
+      if (!selected.ok) {
+        return selected;
+      }
+      if (selected.diagnostics.requestMode === "fusion-legacy-fallback") {
+        logger.warn("[SRDCloudTransformer] Fusion canonical request unavailable", {
+          requestMode: selected.diagnostics.requestMode,
+          ...(selected.diagnostics.sourceAdapterKey
+            ? { sourceAdapterKey: selected.diagnostics.sourceAdapterKey }
+            : {})
+        });
+      }
       const body = endpointKind === "embeddings"
-        ? normalizeEmbeddingRequestBody(sourceBody)
-        : normalizeSRDCloudRequestBody(sourceBody, {
-          flattenToolMessages: pluginOptions.flattenToolMessages === true
+        ? normalizeEmbeddingRequestBody(selected.body)
+        : normalizeSRDCloudRequestBody(selected.body, {
+          flattenToolMessages: pluginOptions.flattenToolMessages !== false
         });
       const modelName = pluginOptions.modelName ||
         (isRecord(body) ? body.model || body.modelName : undefined) ||
+        model ||
         (isRecord(upstreamRequest.body) ? upstreamRequest.body.model || upstreamRequest.body.modelName : undefined);
-      const discoveredLimits = endpointKind === "chat" ? await loadModelLimits(targetProviderConfig) : {};
-      const transformedBody = endpointKind === "chat"
-        ? clampMaxTokens(body, modelName, pluginOptions, discoveredLimits)
-        : body;
+      const modelLimits = endpointKind === "chat"
+        ? await loadModelLimits(targetProviderConfig)
+        : { limits: {}, state: "disabled" };
+      const limitDecision = endpointKind === "chat"
+        ? maxTokenDecision(body, modelName, pluginOptions, modelLimits.limits)
+        : {
+          body,
+          incomingMaxTokens: undefined,
+          maxTokenLimitSources: [],
+          outgoingMaxTokens: undefined
+        };
+      const transformedBody = limitDecision.body;
       const endpointPath = endpointKind === "embeddings" ? EMBEDDINGS_ENDPOINT_PATH : ENDPOINT_PATH;
       const url = new URL(endpointPath, baseUrl).toString();
-      logger.debug("[SRDCloudTransformer] provider hook transformed request", {
-        body: bodyMetadata(transformedBody),
-        endpointKind,
-        hasApiKey: Boolean(pluginOptions.apiKey || providerApiKey(targetProviderConfig)),
-        hasUserId: Boolean(pluginOptions.userId),
-        modelName,
-        url
-      });
+      if (debugEnabled) {
+        const discoveredModelLimits = modelLimits.limits?.[modelName] || {};
+        let body;
+        let requestFingerprint;
+        try {
+          const serializedBody = JSON.stringify(transformedBody);
+          body = bodyMetadata(transformedBody, serializedBody);
+          if (fingerprintKey) {
+            requestFingerprint = crypto
+              .createHmac("sha256", fingerprintKey)
+              .update(serializedBody)
+              .digest("hex")
+              .slice(0, 16);
+          }
+        } catch {
+          // Diagnostic serialization must not break request handling.
+        }
+        logger.debug("[SRDCloudTransformer] provider hook transformed request", {
+          ...(body === undefined ? {} : { body }),
+          discoveredMaxInputTokens: parsePositiveInteger(discoveredModelLimits.maxTokens),
+          discoveredMaxOutputTokens: parsePositiveInteger(discoveredModelLimits.maxOutputTokens),
+          endpointKind,
+          hasApiKey: Boolean(pluginOptions.apiKey || providerApiKey(targetProviderConfig)),
+          hasUserId: Boolean(pluginOptions.userId),
+          incomingMaxTokens: limitDecision.incomingMaxTokens,
+          maxTokenLimitSources: limitDecision.maxTokenLimitSources,
+          modelLimitsCache: modelLimits.state,
+          modelName,
+          outgoingMaxTokens: limitDecision.outgoingMaxTokens,
+          ...(requestFingerprint === undefined ? {} : { requestFingerprint }),
+          ...selected.diagnostics,
+          url
+        });
+      }
       return {
         ok: true,
         value: {
@@ -919,6 +1110,7 @@ module.exports = {
   SRDCloudTransformer,
   VERSION_CACHE_FILE,
   createLevelLogger,
+  createModelLimitsCache,
   createSRDCloudProviderPlugin,
   createControlledLogger,
   decryptApiKey,

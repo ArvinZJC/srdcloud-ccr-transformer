@@ -18,6 +18,8 @@ const PLUGIN_CONFIG_KEYS = new Set([
   "credentialsPath",
   "discoverModelLimits",
   "flattenToolMessages",
+  "fusionVisionCompatibility",
+  "fusionVisionProviderName",
   "key",
   "logFile",
   "logLevel",
@@ -96,11 +98,26 @@ function logGatewayPluginCreated(pluginConfig) {
 }
 
 function createGatewayPlugin(input = {}) {
-  const pluginConfig = resolvePluginConfig(input);
+  const pluginConfig = {
+    flattenToolMessages: true,
+    ...resolvePluginConfig(input)
+  };
   logGatewayPluginCreated(pluginConfig);
+  const providerHooks = [createSRDCloudProviderPlugin(pluginConfig)];
+  if (
+    pluginConfig.fusionVisionCompatibility !== false &&
+    typeof pluginConfig.fusionVisionProviderName === "string" &&
+    pluginConfig.fusionVisionProviderName.trim()
+  ) {
+    providerHooks.push(createSRDCloudProviderPlugin({
+      ...pluginConfig,
+      key: `${pluginConfig.key || "srdcloud-target-adapter"}-fusion-vision`,
+      providerName: pluginConfig.fusionVisionProviderName.trim()
+    }));
+  }
 
   return {
-    providerHooks: [createSRDCloudProviderPlugin(pluginConfig)]
+    providerHooks
   };
 }
 

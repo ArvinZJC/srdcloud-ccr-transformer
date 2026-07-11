@@ -7,6 +7,9 @@ const {
   writeGatewayPluginRuntimeConfig
 } = require("./src/ccr-config.cjs");
 const {
+  applyFusionVisionCompatibility
+} = require("./src/ccr-vision-compat.cjs");
+const {
   createControlledLogger,
   createSRDCloudProviderPlugin
 } = require("./src/srdcloud-transformer.cjs");
@@ -20,20 +23,41 @@ module.exports = {
     const defaultLogFile = ctx.paths?.pluginDataDir
       ? path.join(ctx.paths.pluginDataDir, "srdcloud-transformer.log")
       : undefined;
+    const compatibility = applyFusionVisionCompatibility(ctx.config, {
+      enabled: pluginConfig.fusionVisionCompatibility !== false
+    });
+    const compatibilityActive =
+      compatibility.state === "applied" || compatibility.state === "already-capable";
+    const gatewayPluginConfig = { ...pluginConfig };
+    delete gatewayPluginConfig.fusionVisionProviderName;
     const gatewayPlugin = buildGatewayModulePlugin({
       appConfig: ctx.config,
       modulePath: GATEWAY_PLUGIN_PATH,
-      pluginConfig,
+      pluginConfig: gatewayPluginConfig,
       pluginConfigDefaults: {
-        ...(defaultLogFile ? { logFile: defaultLogFile } : {})
+        ...(defaultLogFile ? { logFile: defaultLogFile } : {}),
+        ...(compatibilityActive
+          ? { fusionVisionProviderName: compatibility.chatProviderName }
+          : {})
       }
     });
     const runtimeConfigPath = writeGatewayPluginRuntimeConfig(gatewayPlugin.config, { projectRoot: __dirname });
     const providerPlugin = createSRDCloudProviderPlugin(gatewayPlugin.config);
     ctx.registerCoreGatewayProviderPlugin?.(providerPlugin);
+    let fusionVisionProviderHookRegistered = false;
+    if (compatibilityActive && typeof ctx.registerCoreGatewayProviderPlugin === "function") {
+      ctx.registerCoreGatewayProviderPlugin(createSRDCloudProviderPlugin({
+        ...gatewayPlugin.config,
+        key: `${providerPluginKey}-fusion-vision`,
+        providerName: compatibility.chatProviderName
+      }));
+      fusionVisionProviderHookRegistered = true;
+    }
     createControlledLogger(gatewayPlugin.config).debug("[SRDCloudTransformer] wrapper registered provider hook", {
       fallbackModuleConfigured: true,
       flattenToolMessages: gatewayPlugin.config.flattenToolMessages === true,
+      fusionVisionCompatibility: compatibility.state,
+      fusionVisionProviderHookRegistered,
       hasProviderName: typeof gatewayPlugin.config.providerName === "string" && Boolean(gatewayPlugin.config.providerName),
       logFileConfigured: typeof gatewayPlugin.config.logFile === "string" && Boolean(gatewayPlugin.config.logFile)
     });

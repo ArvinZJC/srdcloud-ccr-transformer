@@ -50,8 +50,30 @@ test("gateway plugin module returns an executable SRDCloud provider hook", () =>
     plugin: {
       config: {
         credentials: null,
+        fusionVisionCompatibility: true,
+        fusionVisionProviderName: "provider-srdcloud::openai_chat_completions",
         providerName: "provider-srdcloud::openai_responses",
         userId: "user-1"
+      }
+    }
+  });
+
+  assert.equal(result.providerHooks.length, 2);
+  assert.equal(result.providerHooks[0].key, "srdcloud-target-adapter");
+  assert.equal(result.providerHooks[0].providerName, "provider-srdcloud::openai_responses");
+  assert.equal(typeof result.providerHooks[0].transformRequest, "function");
+  assert.equal(result.providerHooks[1].key, "srdcloud-target-adapter-fusion-vision");
+  assert.equal(result.providerHooks[1].providerName, "provider-srdcloud::openai_chat_completions");
+});
+
+test("gateway plugin module honours the Fusion vision compatibility opt-out", () => {
+  const result = gatewayPlugin.createGatewayPlugin({
+    plugin: {
+      config: {
+        credentials: null,
+        fusionVisionCompatibility: false,
+        fusionVisionProviderName: "provider-srdcloud::openai_chat_completions",
+        providerName: "provider-srdcloud::openai_responses"
       }
     }
   });
@@ -59,7 +81,6 @@ test("gateway plugin module returns an executable SRDCloud provider hook", () =>
   assert.equal(result.providerHooks.length, 1);
   assert.equal(result.providerHooks[0].key, "srdcloud-target-adapter");
   assert.equal(result.providerHooks[0].providerName, "provider-srdcloud::openai_responses");
-  assert.equal(typeof result.providerHooks[0].transformRequest, "function");
 });
 
 test("gateway plugin module uses direct config and writes a creation log marker", () => {
