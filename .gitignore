@@ -262,9 +262,10 @@ vite.config.ts.timestamp-*
 .vite/
 
 ## Others.
+.ccr-gateway-plugin.config.json
 .claude/
 .codex/
-.ccr-gateway-plugin.config.json
 .omo/
 .sisyphus/
+.worktrees/
 docs/superpowers/
