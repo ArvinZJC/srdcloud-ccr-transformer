@@ -267,5 +267,6 @@ vite.config.ts.timestamp-*
 .codex/
 .omo/
 .sisyphus/
+.superpowers/
 .worktrees/
 docs/superpowers/
