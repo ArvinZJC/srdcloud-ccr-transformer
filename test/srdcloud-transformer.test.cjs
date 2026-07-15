@@ -1470,7 +1470,7 @@ test("Chat Completions compatibility hook preserves image_url requests", async (
         }]
       }
     },
-    sourceAdapterKey: "openai_chat_completions",
+    sourceAdapterKey: "openai_chat",
     targetProviderConfig: { baseurl: "https://www.srdcloud.cn" },
     upstreamRequest: {
       body: {},
