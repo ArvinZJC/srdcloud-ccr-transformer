@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Changed
+
+- Aligned the default `User-Agent` header with CodeFree-O 1.4.0 by sending
+  `opencode/1.4.0` while preserving explicit plugin overrides.
+
+## 0.3.0 - 2026-07-11
+
 ### Added
 
 - Added comprehensive CCR Fusion model compatibility for built-in vision,
