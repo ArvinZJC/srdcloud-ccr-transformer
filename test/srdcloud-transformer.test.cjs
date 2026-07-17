@@ -85,6 +85,20 @@ test("transformRequestIn sends CodeFree-O client headers and subservice", async 
   });
 });
 
+test("transformRequestIn uses the CodeFree-O User-Agent by default", async () => {
+  const transformer = new SRDCloudTransformer({
+    skipVersionUpdate: true,
+    userId: "user-1"
+  });
+
+  const result = await transformer.transformRequestIn(
+    { model: "GLM-5.1" },
+    { apiKey: "secret-key" }
+  );
+
+  assert.equal(result.config.headers["User-Agent"], "opencode/1.4.0");
+});
+
 test("transformRequestIn can include an explicit SRDCloud sessionId", async () => {
   const transformer = new SRDCloudTransformer({
     sessionId: "session-1",
@@ -1470,7 +1484,7 @@ test("Chat Completions compatibility hook preserves image_url requests", async (
         }]
       }
     },
-    sourceAdapterKey: "openai_chat_completions",
+    sourceAdapterKey: "openai_chat",
     targetProviderConfig: { baseurl: "https://www.srdcloud.cn" },
     upstreamRequest: {
       body: {},

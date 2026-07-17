@@ -91,7 +91,7 @@ Default option content:
   "logToFile": true,
   "modelLimitsTtlMs": 3600000,
   "subService": "codefree_o_chat",
-  "userAgent": "OpenAI/JS 5.11.0"
+  "userAgent": "opencode/1.4.0"
 }
 ```
 
