@@ -15,6 +15,7 @@ non-Fusion traffic can retain its existing path.
 | --- | --- | --- | --- |
 | Implementation baseline | `v3.0.11` (`9cd0aab309c696e2e080112bfa0c82031de3d832`) | `1.0.7` | Fusion bridge and vision shim designed and implemented against these contracts. |
 | Structural compatibility review, 2026-07-15 | `v3.0.13` (`ae265ec934b63a92d2135bfdc9ac3cb52783c42a`) | `1.0.9` | No runtime transformer change required. |
+| Structural compatibility review, 2026-07-21 | `v3.0.15` (`f22f2a4c79b2ad51b2b947377f285769470f6e09`) | `1.0.12` | No runtime transformer change required; the vision shim remains necessary. |
 
 Published gateway packages used for the comparison:
 
@@ -24,6 +25,9 @@ Published gateway packages used for the comparison:
 - `@the-next-ai/ai-gateway` 1.0.9: `https://registry.npmjs.org/@the-next-ai/ai-gateway/-/ai-gateway-1.0.9.tgz`
   with lockfile integrity
   `sha512-/nt/1ZciUgarfyJW6itfDIgKMa8HOgmt0RyPyvmUCDcbJGEEl0BNmd85Zz5boSwT70xcjNojds9DPsQXG7N+sQ==`.
+- `@the-next-ai/ai-gateway` 1.0.12: `https://registry.npmjs.org/@the-next-ai/ai-gateway/-/ai-gateway-1.0.12.tgz`
+  with lockfile integrity
+  `sha512-o092FXo18NwXyetqeS192jBH0dmrklpsFyU3LlOUloXOHODVraniYOUAVXzrhTYzD6pPqvVxAjI/6K2PY6hBQQ==`.
 
 ## Contract Boundary
 
@@ -44,7 +48,7 @@ The transformer relies on these provider-hook and virtual-model properties:
   OpenAI Responses.
 
 The last property is why the isolated vision compatibility shim remains needed
-for affected SRDCloud profiles in CCR 3.0.13.
+for affected SRDCloud profiles in CCR 3.0.15.
 
 ## 3.0.13 Review Evidence
 
@@ -60,6 +64,31 @@ hosted web-search improvements, provider routing work, and OpenAI Responses
 stream metadata. None changes the transformer boundary above. CCR 3.0.13 still
 normalises Fusion vision selectors for `openai_chat_completions`, and its
 bundled vision MCP still sends an OpenAI Chat Completions request.
+
+This was a structural source and package comparison, not a substitute for a
+live request through an installed CCR Desktop build.
+
+## 3.0.15 Review Evidence
+
+The review compared CCR tags `v3.0.13` and `v3.0.15`, then compared the
+published gateway packages at versions 1.0.9 and 1.0.12, including their source
+maps. Provider-hook inputs and execution, source-adapter keys, virtual-model
+matching, and the request and response plugin paths used by this extension did
+not change incompatibly.
+
+Gateway 1.0.12 adds a canonical `standardRequest.text` field for OpenAI
+Responses requests. The extension already uses CCR's materialised
+`upstreamRequest` for OpenAI Chat Completions and Responses sources, while its
+own canonical projection is limited to Anthropic Messages sources. The new
+field therefore requires no transformer projection change.
+
+Relevant CCR 3.0.15 changes include router and configuration refactoring,
+capability-specific aliases for provider plugins, effectively unlimited Fusion
+tool-loop limits for non-decorative profiles, media tooling, and expanded
+request logging. These changes preserve the contract boundary above. CCR
+3.0.15 still normalises Fusion vision selectors for
+`openai_chat_completions`, and its bundled vision MCP still sends an OpenAI
+Chat Completions request, so the compatibility shim remains necessary.
 
 This was a structural source and package comparison, not a substitute for a
 live request through an installed CCR Desktop build.
