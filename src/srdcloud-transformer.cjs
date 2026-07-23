@@ -7,14 +7,15 @@ const os = require("node:os");
 const path = require("node:path");
 
 const { selectSRDCloudChatBody } = require("./ccr-fusion.cjs");
+const { createCodeFreeTokenAuth } = require("./codefree-token-auth.cjs");
 
 const DEFAULT_BASE_URL = "https://www.srdcloud.cn";
 const DEFAULT_AUTH_HEADER = "Bearer codefree";
 const DEFAULT_CLIENT_TYPE = "codefree-o";
-const DEFAULT_CLIENT_VERSION = "1.4.0";
+const DEFAULT_CLIENT_VERSION = "1.5.1";
 const DEFAULT_PACKAGE_NAME = "@srdcloud/codefree-o";
 const DEFAULT_SUB_SERVICE = "codefree_o_chat";
-const DEFAULT_USER_AGENT = "opencode/1.4.0";
+const DEFAULT_USER_AGENT = `opencode/${DEFAULT_CLIENT_VERSION}`;
 const ENDPOINT_PATH = "/api/acbackend/codechat/v1/completions";
 const EMBEDDINGS_ENDPOINT_PATH = "/api/aebackend/codefree-embedding-svc/v1/text-to-embedding-vector";
 const MODEL_MANAGER_PATH = "/api/acbackend/modelmgr/v1/clients/codefree-o/versions/";
@@ -607,20 +608,27 @@ function srdCloudSessionId(options = {}, existingHeaders = {}) {
   );
 }
 
-function srdCloudHeaders(options, providerConfig, modelName, existingHeaders = {}) {
+function srdCloudBaseHeaders(options, modelName, existingHeaders = {}) {
   const sessionId = srdCloudSessionId(options, existingHeaders);
   return {
     ...forwardedRequestHeaders(existingHeaders),
     Accept: "application/json",
     "User-Agent": options.userAgent || DEFAULT_USER_AGENT,
-    apiKey: options.apiKey || providerApiKey(providerConfig),
-    authorization: options.authHeader || DEFAULT_AUTH_HEADER,
-    userId: options.userId || null,
     subService: options.subService || DEFAULT_SUB_SERVICE,
     modelName,
     clientType: options.clientType || DEFAULT_CLIENT_TYPE,
     clientVersion: options.clientVersion || DEFAULT_CLIENT_VERSION,
     ...(sessionId ? { sessionId } : {})
+  };
+}
+
+function srdCloudLegacyHeaders(options, providerConfig, modelName, existingHeaders = {}) {
+  const baseHeaders = srdCloudBaseHeaders(options, modelName, existingHeaders);
+  return {
+    ...baseHeaders,
+    apiKey: options.apiKey || providerApiKey(providerConfig),
+    authorization: options.authHeader || DEFAULT_AUTH_HEADER,
+    userId: options.userId || null
   };
 }
 
@@ -666,18 +674,22 @@ async function fetchJson(url, init, fetchImpl) {
 async function discoverModelLimits(options = {}) {
   const clientVersion = options.clientVersion || DEFAULT_CLIENT_VERSION;
   const url = modelManagerUrl(options.baseUrl || DEFAULT_BASE_URL, clientVersion);
+  const modern = typeof options.authenticatedFetch === "function";
   const response = await fetchJson(
     url,
     {
       method: "GET",
-      headers: {
+      headers: modern ? {
+        clientType: options.clientType || DEFAULT_CLIENT_TYPE,
+        clientVersion
+      } : {
         apiKey: options.apiKey,
         clientType: options.clientType || DEFAULT_CLIENT_TYPE,
         clientVersion,
         userId: options.userId
       }
     },
-    options.fetch
+    modern ? options.authenticatedFetch : options.fetch
   );
   if (response.optResult !== 0) {
     throw new Error(`CodeFree model discovery failed: ${response.msg || response.optResult}`);
@@ -837,17 +849,34 @@ function bodyMetadata(body, serializedBody) {
 }
 
 function createSRDCloudProviderPlugin(options = {}) {
-  const credentials = hasOwn(options, "credentials")
-    ? options.credentials
-    : readCredentials(options.credentialsPath);
+  const modernConfigured = typeof options.codefreeAuthFile === "string" &&
+    Boolean(options.codefreeAuthFile.trim());
+  const credentials = modernConfigured
+    ? null
+    : hasOwn(options, "credentials")
+      ? options.credentials
+      : readCredentials(options.credentialsPath);
   const pluginOptions = {
     ...options,
     apiKey: options.apiKey || credentials?.apiKey || null,
     userId: options.userId || credentials?.userId || null
   };
   const logger = createControlledLogger(options);
+  const tokenAuth = modernConfigured
+    ? options.codefreeTokenAuth || createCodeFreeTokenAuth({
+      authFilePath: options.codefreeAuthFile,
+      fetch: options.tokenAuthFetch,
+      fs: options.tokenAuthFs,
+      getuid: options.tokenAuthGetuid,
+      logger,
+      nonce: options.tokenAuthNonce,
+      now: options.tokenAuthNow,
+      randomBytes: options.tokenAuthRandomBytes
+    })
+    : null;
   const modelLimitsCache = createModelLimitsCache(options);
   const debugEnabled = isLogLevelEnabled(options, "debug");
+  let legacyWarningEmitted = false;
   let fingerprintKey;
   if (debugEnabled) {
     try {
@@ -857,21 +886,48 @@ function createSRDCloudProviderPlugin(options = {}) {
     }
   }
 
+  function authModeFor(targetProviderConfig) {
+    if (tokenAuth) {
+      return "token";
+    }
+    return pluginOptions.apiKey || providerApiKey(targetProviderConfig)
+      ? "legacy"
+      : "missing";
+  }
+
+  function warnLegacyAuth() {
+    if (legacyWarningEmitted) {
+      return;
+    }
+    legacyWarningEmitted = true;
+    logger.warn(
+      "[SRDCloudTransformer] API-key authentication is deprecated; configure CodeFree token authentication."
+    );
+  }
+
   async function loadModelLimits(targetProviderConfig) {
     if (pluginOptions.discoverModelLimits !== true) {
       return { limits: {}, state: "disabled" };
     }
-    if ((!pluginOptions.apiKey && !providerApiKey(targetProviderConfig)) || !pluginOptions.userId) {
+    const authMode = authModeFor(targetProviderConfig);
+    if (
+      authMode === "missing" ||
+      (authMode === "legacy" && !pluginOptions.userId)
+    ) {
       return { limits: {}, state: "disabled" };
     }
 
     const result = await modelLimitsCache.get({
-      apiKey: pluginOptions.apiKey || providerApiKey(targetProviderConfig),
+      ...(authMode === "token"
+        ? { authenticatedFetch: tokenAuth.authenticatedFetch }
+        : {
+          apiKey: pluginOptions.apiKey || providerApiKey(targetProviderConfig),
+          fetch: pluginOptions.modelLimitsFetch,
+          userId: pluginOptions.userId
+        }),
       baseUrl: providerBaseUrl(targetProviderConfig),
       clientType: pluginOptions.clientType || DEFAULT_CLIENT_TYPE,
-      clientVersion: pluginOptions.clientVersion || DEFAULT_CLIENT_VERSION,
-      fetch: pluginOptions.modelLimitsFetch,
-      userId: pluginOptions.userId
+      clientVersion: pluginOptions.clientVersion || DEFAULT_CLIENT_VERSION
     });
     if (result.state === "failed") {
       logger.warn("[SRDCloudTransformer] model discovery failed", {
@@ -886,11 +942,30 @@ function createSRDCloudProviderPlugin(options = {}) {
     key: options.key || "srdcloud-target-adapter",
     ...(options.providerName ? { providerName: options.providerName } : { provider: options.provider || "openai" }),
     authenticate({ targetProviderConfig, upstreamRequest }) {
+      const authMode = authModeFor(targetProviderConfig);
+      if (authMode === "missing") {
+        return {
+          error: "SRDCloud authentication is not configured.",
+          ok: false
+        };
+      }
+      if (authMode === "token") {
+        return {
+          ok: true,
+          value: upstreamRequest
+        };
+      }
+      warnLegacyAuth();
       return {
         ok: true,
         value: {
           ...upstreamRequest,
-          headers: srdCloudHeaders(pluginOptions, targetProviderConfig, undefined, upstreamRequest.headers)
+          headers: srdCloudLegacyHeaders(
+            pluginOptions,
+            targetProviderConfig,
+            undefined,
+            upstreamRequest.headers
+          )
         }
       };
     },
@@ -957,6 +1032,7 @@ function createSRDCloudProviderPlugin(options = {}) {
       const transformedBody = limitDecision.body;
       const endpointPath = endpointKind === "embeddings" ? EMBEDDINGS_ENDPOINT_PATH : ENDPOINT_PATH;
       const url = new URL(endpointPath, baseUrl).toString();
+      const authMode = authModeFor(targetProviderConfig);
       if (debugEnabled) {
         const discoveredModelLimits = modelLimits.limits?.[modelName] || {};
         let body;
@@ -978,6 +1054,7 @@ function createSRDCloudProviderPlugin(options = {}) {
           ...(body === undefined ? {} : { body }),
           discoveredMaxInputTokens: parsePositiveInteger(discoveredModelLimits.maxTokens),
           discoveredMaxOutputTokens: parsePositiveInteger(discoveredModelLimits.maxOutputTokens),
+          authMode,
           endpointKind,
           hasApiKey: Boolean(pluginOptions.apiKey || providerApiKey(targetProviderConfig)),
           hasUserId: Boolean(pluginOptions.userId),
@@ -991,6 +1068,22 @@ function createSRDCloudProviderPlugin(options = {}) {
           url
         });
       }
+      const baseHeaders = srdCloudBaseHeaders(
+        pluginOptions,
+        modelName,
+        upstreamRequest.headers
+      );
+      let headers = baseHeaders;
+      if (authMode === "token") {
+        headers = await tokenAuth.applyHeaders({ method: "POST", headers: baseHeaders });
+      } else if (authMode === "legacy") {
+        headers = srdCloudLegacyHeaders(
+          pluginOptions,
+          targetProviderConfig,
+          modelName,
+          upstreamRequest.headers
+        );
+      }
       return {
         ok: true,
         value: {
@@ -999,7 +1092,7 @@ function createSRDCloudProviderPlugin(options = {}) {
           bodyEncoding: "json",
           method: "POST",
           url,
-          headers: srdCloudHeaders(pluginOptions, targetProviderConfig, modelName, upstreamRequest.headers)
+          headers
         }
       };
     }
@@ -1010,14 +1103,30 @@ class SRDCloudTransformer {
   constructor(options = {}) {
     this.logLevel = normalizeLogLevel(options);
     this.logger = createControlledLogger(options);
-    const credentials = hasOwn(options, "credentials")
-      ? options.credentials
-      : readCredentials(options.credentialsPath);
+    const modernConfigured = typeof options.codefreeAuthFile === "string" &&
+      Boolean(options.codefreeAuthFile.trim());
+    const credentials = modernConfigured
+      ? null
+      : hasOwn(options, "credentials")
+        ? options.credentials
+        : readCredentials(options.credentialsPath);
+    this.tokenAuth = modernConfigured
+      ? options.codefreeTokenAuth || createCodeFreeTokenAuth({
+        authFilePath: options.codefreeAuthFile,
+        fetch: options.tokenAuthFetch,
+        fs: options.tokenAuthFs,
+        getuid: options.tokenAuthGetuid,
+        logger: this.logger,
+        nonce: options.tokenAuthNonce,
+        now: options.tokenAuthNow,
+        randomBytes: options.tokenAuthRandomBytes
+      })
+      : null;
 
     this.name = "srdcloud";
     this.endPoint = ENDPOINT_PATH;
     this.userId = options.userId || credentials?.userId || null;
-    this.apiKey = options.apiKey || credentials?.apiKey || null;
+    this.apiKey = this.tokenAuth ? null : options.apiKey || credentials?.apiKey || null;
     this.authHeader = options.authHeader || DEFAULT_AUTH_HEADER;
     this.clientType = options.clientType || DEFAULT_CLIENT_TYPE;
     this.clientVersion = options.clientVersion || DEFAULT_CLIENT_VERSION;
@@ -1029,7 +1138,7 @@ class SRDCloudTransformer {
     this.userAgent = options.userAgent || DEFAULT_USER_AGENT;
     this.modelName = options.modelName;
 
-    if (!this.userId) {
+    if (!this.tokenAuth && !this.userId) {
       this.logger.warn?.(
         '[SRDCloudTransformer] Warning: userId not found. Please run "cfh" to generate credentials, or provide them via options.'
       );
@@ -1057,32 +1166,45 @@ class SRDCloudTransformer {
   async transformRequestIn(body, requestConfig = {}) {
     await this._ensureVersionUpdated();
 
-    const apiKey = hasOwn(requestConfig, "apiKey") ? requestConfig.apiKey : this.apiKey;
+    const apiKey = this.tokenAuth
+      ? undefined
+      : hasOwn(requestConfig, "apiKey")
+        ? requestConfig.apiKey
+        : this.apiKey;
     const modelName = this.modelName || body.model || body.modelName;
     const url = new URL(this.endPoint, requestConfig.baseUrl || DEFAULT_BASE_URL);
     this.logger.debug?.("[SRDCloudTransformer] request transformed", {
+      authMode: this.tokenAuth ? "token" : "legacy",
       hasApiKey: Boolean(apiKey),
       hasUserId: Boolean(this.userId),
       modelName,
       url: String(url)
     });
 
+    const legacyHeaders = {
+      Accept: "application/json",
+      "User-Agent": this.userAgent,
+      apiKey,
+      authorization: this.authHeader,
+      userId: this.userId,
+      subService: this.subService,
+      modelName,
+      clientType: this.clientType,
+      clientVersion: this.clientVersion,
+      ...(this.sessionId ? { sessionId: this.sessionId } : {})
+    };
+    const headers = this.tokenAuth
+      ? await this.tokenAuth.applyHeaders({
+        method: "POST",
+        headers: srdCloudBaseHeaders(this, modelName)
+      })
+      : legacyHeaders;
+
     return {
       body,
       config: {
         url,
-        headers: {
-          Accept: "application/json",
-          "User-Agent": this.userAgent,
-          apiKey,
-          authorization: this.authHeader,
-          userId: this.userId,
-          subService: this.subService,
-          modelName,
-          clientType: this.clientType,
-          clientVersion: this.clientVersion,
-          ...(this.sessionId ? { sessionId: this.sessionId } : {})
-        }
+        headers
       }
     };
   }

@@ -13,6 +13,11 @@ function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function codefreeAuthFileFromEnvironment(environment = process.env) {
+  const value = environment.SRDCLOUD_CODEFREE_AUTH_FILE;
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
 function serializablePluginConfig(pluginConfig) {
   const config = {};
   for (const [key, value] of Object.entries(pluginConfig || {})) {
@@ -142,6 +147,7 @@ module.exports = {
   DEFAULT_PLUGIN_ID,
   DEFAULT_PROVIDER_PLUGIN_KEY,
   buildGatewayModulePlugin,
+  codefreeAuthFileFromEnvironment,
   gatewayPluginModulePath,
   gatewayPluginRuntimeConfigPath,
   providerNameForSRDCloud,
