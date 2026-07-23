@@ -10,9 +10,14 @@ This repository contains a CCR Desktop 3.x local extension for the SRDCloud Code
 - `src/ccr-fusion.cjs`: CCR virtual-model matching and canonical Fusion request projection for built-in vision, web search, and custom MCP tools.
 - `src/ccr-vision-compat.cjs`: removable CCR 3.x Fusion vision compatibility shim that advertises Chat Completions without replacing Responses.
 - `src/ccr-config.cjs`: helpers for generating/installing CCR Desktop config.
+- `src/codefree-token-auth.cjs`: private CodeFree token loading, signing, caching, and refresh rotation.
+- `src/codefree-auth-setup.cjs`: semantic-contract-validated local CodeFree-O inspection and private auth-file setup.
+- `src/codefree-auth-provenance.cjs`: reviewed public artifact identities and optional exact-fingerprint lookup.
+- `src/codefree-auth-extractor.cjs`: bounded, minifier-name-independent authentication contract validation.
 - `scripts/install-ccr-config.cjs`: installer for updating CCR Desktop app config.
+- `scripts/setup-codefree-auth.cjs`: credential-safe token-auth setup command.
 - `test/*.test.cjs`: Node test-runner coverage for compatibility, config, gateway, and extension behavior.
-- `docs/provenance/`: tracked evidence for the restored dependency-derived behavior. Keep restoration and provenance details contributor-facing rather than adding them to `README.md`.
+- `docs/provenance/`: tracked evidence for restored dependency behavior and reviewed CodeFree-O artifacts. Keep restoration and provenance details contributor-facing rather than adding them to `README.md`.
 - `plugin.json` and `package.json`: local extension metadata.
 
 Runtime bridge files such as `.ccr-gateway-plugin.config.json` are local generated state and must stay untracked.
@@ -21,7 +26,8 @@ Runtime bridge files such as `.ccr-gateway-plugin.config.json` are local generat
 
 - `npm test`: runs all tests with Node's built-in test runner.
 - `npm run check`: syntax-checks all CommonJS entrypoints and source files with `node --check`.
-- `npm run check:provenance`: verifies the installed legacy transformer still matches the recorded provenance metadata.
+- `npm run check:provenance`: verifies the installed legacy transformer and machine-readable CodeFree-O auth provenance metadata.
+- `npm run setup:codefree-auth`: semantically validates a local CodeFree-O build and configures preferred token authentication without printing secrets.
 
 For CCR Desktop install, logging, and runtime troubleshooting commands, refer to `README.md`. After config or extension changes, restart CCR Desktop and verify the live app, not only local tests.
 
@@ -47,9 +53,15 @@ Commit subjects must start with exactly one of these prefixes: `feat:`, `fix:`, 
 
 Pull requests should describe the CCR runtime scenario tested, list local commands run, and note any manual app verification such as request-log checks or extension log markers.
 
+## Changelog Lifecycle
+
+During active development, collect changes under `## Unreleased` without a version or date. When preparing a release, replace that heading with the release version and date; do not retain an empty Unreleased section, and add a new one only when subsequent development begins.
+
 ## Documentation Boundaries
 
 Keep user-facing setup, configuration, and troubleshooting details in `README.md`. If the same topic needs to be mentioned here for contributors, link or refer to `README.md` instead of duplicating the content.
+
+Do not hard wrap prose in Markdown files; keep each paragraph or list item on one source line unless Markdown syntax requires separate lines.
 
 Do not expose SRDCloud API route paths, credential file locations, log file locations, or machine-specific local paths in public-facing docs. Keep those details in implementation code, tests, or provenance records only when they are needed for maintainability.
 
