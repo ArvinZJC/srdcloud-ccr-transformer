@@ -3,9 +3,16 @@
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
+const {
+  validateCodeFreeAuthProvenance
+} = require("../src/codefree-auth-provenance.cjs");
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 const PACKAGE_LOCK_PATH = path.join(PROJECT_ROOT, "package-lock.json");
+const CODEFREE_AUTH_PROVENANCE_PATH = path.join(
+  PROJECT_ROOT,
+  "docs/provenance/codefree-o-auth.json"
+);
 const LEGACY_TRANSFORMER_PATH = path.join(
   PROJECT_ROOT,
   "node_modules/codefree-helper/dist/ccr/transformer/srdcloud.transformer.js"
@@ -18,6 +25,22 @@ const EXPECTED = {
   transformerBytes: 23765,
   transformerSha256: "edeea6bbeabedac331bc7a1045a55df3d37487f7a25957110e1931a84e858a7a"
 };
+const EXPECTED_CODEFREE_AUTH = {
+  artifactCount: 8,
+  codefreeVersion: "1.5.1",
+  packageCount: 12,
+  profileId: "codefree-token-auth-v1",
+  wrapperIntegrity: "sha512-HUyCu1khWtt7Er8N9Ni8tplGpELBX/ZJP4c0cdAdZCV6wiU0PKDHgPRlFcOS82xPVVPFqDCneRWc7fqr9eZqjw=="
+};
+const FORBIDDEN_CODEFREE_AUTH_KEYS = new Set([
+  "refreshEncryptionKey",
+  "signingSecret",
+  "clientId",
+  "clientSecret",
+  "credentialFile",
+  "userId",
+  "token"
+]);
 
 function fail(message) {
   console.error(`[provenance] ${message}`);
@@ -64,9 +87,61 @@ function checkTransformerFile() {
   }
 }
 
+function objectKeys(value) {
+  if (Array.isArray(value)) {
+    return value.flatMap(objectKeys);
+  }
+  if (!value || typeof value !== "object") {
+    return [];
+  }
+  return [
+    ...Object.keys(value),
+    ...Object.values(value).flatMap(objectKeys)
+  ];
+}
+
+function checkCodeFreeAuthProvenance() {
+  let provenance;
+  try {
+    provenance = validateCodeFreeAuthProvenance(
+      readJson(CODEFREE_AUTH_PROVENANCE_PATH)
+    );
+  } catch {
+    fail("CodeFree-O authentication provenance is missing or invalid.");
+    return;
+  }
+  if (provenance.artifacts.length !== EXPECTED_CODEFREE_AUTH.artifactCount) {
+    fail("CodeFree-O authentication provenance artifact count changed.");
+  }
+  if (
+    provenance.artifacts.some((artifact) =>
+      artifact.codefreeVersion !== EXPECTED_CODEFREE_AUTH.codefreeVersion
+    )
+  ) {
+    fail("CodeFree-O authentication provenance version changed.");
+  }
+  const packages = provenance.artifacts.flatMap((artifact) => artifact.packages);
+  if (packages.length !== EXPECTED_CODEFREE_AUTH.packageCount) {
+    fail("CodeFree-O authentication provenance package count changed.");
+  }
+  if (provenance.semanticProfile.id !== EXPECTED_CODEFREE_AUTH.profileId) {
+    fail("CodeFree-O authentication semantic profile changed.");
+  }
+  if (provenance.wrapper.integrity !== EXPECTED_CODEFREE_AUTH.wrapperIntegrity) {
+    fail("CodeFree-O authentication wrapper integrity changed.");
+  }
+  const forbidden = objectKeys(provenance).filter((key) =>
+    FORBIDDEN_CODEFREE_AUTH_KEYS.has(key)
+  );
+  if (forbidden.length > 0) {
+    fail("CodeFree-O authentication provenance contains private authentication fields.");
+  }
+}
+
 checkPackageLock();
 checkTransformerFile();
+checkCodeFreeAuthProvenance();
 
 if (!process.exitCode) {
-  console.log("[provenance] SRDCloud legacy transformer evidence matches recorded metadata.");
+  console.log("[provenance] SRDCloud dependency evidence matches recorded metadata.");
 }

@@ -9,9 +9,10 @@
   "scripts": {
     "install:ccr-config": "node scripts/install-ccr-config.cjs",
     "install:ccr-config:dry-run": "node scripts/install-ccr-config.cjs --dry-run",
+    "setup:codefree-auth": "node scripts/setup-codefree-auth.cjs",
     "test": "node --test",
     "check:provenance": "node scripts/check-provenance.cjs",
-    "check": "node --check index.cjs && node --check gateway-plugin.cjs && node --check scripts/install-ccr-config.cjs && node --check scripts/check-provenance.cjs && node --check src/ccr-config.cjs && node --check src/ccr-fusion.cjs && node --check src/ccr-vision-compat.cjs && node --check src/srdcloud-transformer.cjs"
+    "check": "node --check index.cjs && node --check gateway-plugin.cjs && node --check scripts/install-ccr-config.cjs && node --check scripts/setup-codefree-auth.cjs && node --check scripts/check-provenance.cjs && node --check src/ccr-config.cjs && node --check src/ccr-fusion.cjs && node --check src/ccr-vision-compat.cjs && node --check src/codefree-auth-extractor.cjs && node --check src/codefree-auth-provenance.cjs && node --check src/codefree-auth-setup.cjs && node --check src/codefree-token-auth.cjs && node --check src/srdcloud-transformer.cjs"
   },
   "dependencies": {
     "codefree-helper": "^1.2.2"

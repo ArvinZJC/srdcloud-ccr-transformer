@@ -33,6 +33,17 @@ test("resolvePluginConfig accepts CCR module plugin objects directly", () => {
   });
 });
 
+test("resolvePluginConfig preserves the private CodeFree auth-file setting", () => {
+  const codefreeAuthFile = "/synthetic/private-auth.json";
+
+  withRuntimeConfigPath(path.join(os.tmpdir(), "missing-srdcloud-runtime-config.json"), () => {
+    assert.deepEqual(
+      gatewayPlugin.resolvePluginConfig({ config: { codefreeAuthFile } }),
+      { codefreeAuthFile }
+    );
+  });
+});
+
 test("resolvePluginConfig accepts wrapped CCR plugin context objects", () => {
   const config = {
     flattenToolMessages: true,

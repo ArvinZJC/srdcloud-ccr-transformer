@@ -7,6 +7,7 @@ const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
 
 const {
+  codefreeAuthFileFromEnvironment,
   withSRDCloudCoreGatewayPlugin,
   writeGatewayPluginRuntimeConfig
 } = require("../src/ccr-config.cjs");
@@ -15,6 +16,8 @@ const projectRoot = path.resolve(__dirname, "..");
 const defaultDbPath = path.join(os.homedir(), ".claude-code-router", "config.sqlite");
 const dbPath = process.env.CCR_CONFIG_DB || defaultDbPath;
 const dryRun = process.argv.includes("--dry-run");
+const quiet = process.env.SRDCLOUD_CCR_INSTALL_QUIET === "1";
+const codefreeAuthFile = codefreeAuthFileFromEnvironment();
 const flattenToolMessages = process.argv.includes("--flatten-tool-messages");
 const discoverModelLimits = process.argv.includes("--discover-model-limits");
 const logLevelIndex = process.argv.indexOf("--log-level");
@@ -76,6 +79,7 @@ const current = readDefaultConfig();
 const { appConfig, gatewayPlugin } = withSRDCloudCoreGatewayPlugin(current, {
   projectRoot,
   pluginConfigDefaults: {
+    ...(codefreeAuthFile ? { codefreeAuthFile } : {}),
     ...(discoverModelLimits ? { discoverModelLimits: true } : {}),
     ...(flattenToolMessages ? { flattenToolMessages: true } : {}),
     logFile,
@@ -85,10 +89,33 @@ const { appConfig, gatewayPlugin } = withSRDCloudCoreGatewayPlugin(current, {
   }
 });
 
+function redactedGatewayPlugin(plugin) {
+  return plugin?.config?.codefreeAuthFile
+    ? {
+      ...plugin,
+      config: {
+        ...plugin.config,
+        codefreeAuthFile: "<configured>"
+      }
+    }
+    : plugin;
+}
+
 if (dryRun) {
-  process.stdout.write(`${JSON.stringify({ dryRun: true, gatewayPlugin }, null, 2)}\n`);
+  if (!quiet) {
+    process.stdout.write(`${JSON.stringify({
+      dryRun: true,
+      gatewayPlugin: redactedGatewayPlugin(gatewayPlugin)
+    }, null, 2)}\n`);
+  }
 } else {
   writeDefaultConfig(appConfig);
   const runtimeConfigPath = writeGatewayPluginRuntimeConfig(gatewayPlugin.config, { projectRoot });
-  process.stdout.write(`${JSON.stringify({ dryRun: false, gatewayPlugin, runtimeConfigPath }, null, 2)}\n`);
+  if (!quiet) {
+    process.stdout.write(`${JSON.stringify({
+      dryRun: false,
+      gatewayPlugin: redactedGatewayPlugin(gatewayPlugin),
+      runtimeConfigPath
+    }, null, 2)}\n`);
+  }
 }

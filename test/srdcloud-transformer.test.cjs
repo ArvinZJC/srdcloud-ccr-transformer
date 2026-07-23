@@ -26,6 +26,31 @@ function encryptApiKey(value) {
   return cipher.update(value, "utf8", "base64") + cipher.final("base64");
 }
 
+function modernAuthFixture(overrides = {}) {
+  return {
+    async applyHeaders({ headers }) {
+      return {
+        ...Object.fromEntries(
+          Object.entries(headers || {}).filter(
+            ([key]) => !["apikey", "authorization"].includes(key.toLowerCase())
+          )
+        ),
+        "X-Cf-Token": "token-fixture",
+        userId: "user-modern",
+        projectId: "0",
+        "X-Cf-AppId": "client-fixture",
+        "X-Cf-Timestamp": "1721720000",
+        "X-Cf-Nonce": "nonce-fixture",
+        "X-Cf-Signature": "signature-fixture"
+      };
+    },
+    async authenticatedFetch() {
+      throw new Error("not used");
+    },
+    ...overrides
+  };
+}
+
 test("decryptApiKey restores CodeFree oauth credential apikey values", () => {
   const encrypted = encryptApiKey("test-api-key");
 
@@ -85,7 +110,7 @@ test("transformRequestIn sends CodeFree-O client headers and subservice", async 
   });
 });
 
-test("transformRequestIn uses the CodeFree-O User-Agent by default", async () => {
+test("transformRequestIn uses the CodeFree-O 1.5.1 client identity by default", async () => {
   const transformer = new SRDCloudTransformer({
     skipVersionUpdate: true,
     userId: "user-1"
@@ -96,7 +121,8 @@ test("transformRequestIn uses the CodeFree-O User-Agent by default", async () =>
     { apiKey: "secret-key" }
   );
 
-  assert.equal(result.config.headers["User-Agent"], "opencode/1.4.0");
+  assert.equal(result.config.headers["User-Agent"], "opencode/1.5.1");
+  assert.equal(result.config.headers.clientVersion, "1.5.1");
 });
 
 test("transformRequestIn can include an explicit SRDCloud sessionId", async () => {
@@ -123,6 +149,25 @@ test("transformRequestIn preserves an empty caller apiKey like the legacy transf
 
   assert.equal(result.config.headers.apiKey, "");
   assert.equal(result.config.headers.modelName, "model-name");
+});
+
+test("transformRequestIn uses modern auth when a CodeFree auth file is configured", async () => {
+  const transformer = new SRDCloudTransformer({
+    apiKey: "legacy-key",
+    codefreeAuthFile: "/synthetic/private-auth.json",
+    codefreeTokenAuth: modernAuthFixture(),
+    skipVersionUpdate: true
+  });
+
+  const result = await transformer.transformRequestIn(
+    { model: "GLM-5.1" },
+    { apiKey: "caller-legacy-key" }
+  );
+
+  assert.equal(result.config.headers.apiKey, undefined);
+  assert.equal(result.config.headers.authorization, undefined);
+  assert.equal(result.config.headers["X-Cf-Token"], "token-fixture");
+  assert.equal(result.config.headers.userId, "user-modern");
 });
 
 test("logLevel silent suppresses constructor warnings", () => {
@@ -161,6 +206,7 @@ test("logLevel debug emits request metadata without leaking api keys", async () 
   assert.equal(calls.length, 1);
   assert.equal(calls[0][0], "[SRDCloudTransformer] request transformed");
   assert.deepEqual(calls[0][1], {
+    authMode: "legacy",
     hasApiKey: true,
     hasUserId: true,
     modelName: "srdcloud/model-a",
@@ -840,6 +886,127 @@ test("createSRDCloudProviderPlugin exposes native CCR Desktop request adapter co
   assert.equal(transformed.value.headers.modelName, "GLM-5.1");
 });
 
+test("provider hook gives modern auth precedence over a configured legacy api key", async () => {
+  const plugin = createSRDCloudProviderPlugin({
+    apiKey: "legacy-key",
+    codefreeAuthFile: "/synthetic/private-auth.json",
+    codefreeTokenAuth: modernAuthFixture(),
+    credentials: null,
+    userId: "legacy-user"
+  });
+  const upstreamRequest = {
+    body: { model: "upstream-model" },
+    headers: {
+      apiKey: "upstream-legacy-key",
+      authorization: "Bearer legacy",
+      "content-type": "application/json"
+    },
+    url: "https://old.example/v1/responses"
+  };
+
+  const authenticated = plugin.authenticate({
+    targetProviderConfig: {},
+    upstreamRequest
+  });
+  assert.deepEqual(authenticated.value.headers, upstreamRequest.headers);
+
+  const transformed = await plugin.transformRequest({
+    request: {
+      body: {
+        messages: [{ role: "user", content: "hello" }],
+        model: "srdcloud/GLM-5.1"
+      }
+    },
+    targetProviderConfig: { baseurl: "https://www.srdcloud.cn" },
+    upstreamRequest
+  });
+
+  assert.equal(transformed.ok, true);
+  assert.equal(transformed.value.headers.apiKey, undefined);
+  assert.equal(transformed.value.headers.authorization, undefined);
+  assert.equal(transformed.value.headers["X-Cf-Token"], "token-fixture");
+  assert.equal(transformed.value.headers.userId, "user-modern");
+});
+
+test("provider hook preserves legacy auth when modern auth is absent", () => {
+  const plugin = createSRDCloudProviderPlugin({
+    apiKey: "legacy-key",
+    authHeader: "Bearer custom",
+    credentials: null,
+    userId: "legacy-user"
+  });
+  const result = plugin.authenticate({
+    targetProviderConfig: {},
+    upstreamRequest: {
+      body: {},
+      headers: { "content-type": "application/json" },
+      url: "https://old.example/v1/responses"
+    }
+  });
+
+  assert.deepEqual(result.value.headers, {
+    "content-type": "application/json",
+    Accept: "application/json",
+    "User-Agent": "opencode/1.5.1",
+    apiKey: "legacy-key",
+    authorization: "Bearer custom",
+    userId: "legacy-user",
+    subService: "codefree_o_chat",
+    modelName: undefined,
+    clientType: "codefree-o",
+    clientVersion: "1.5.1"
+  });
+});
+
+test("provider hook does not fall back when modern auth configuration is invalid", () => {
+  assert.throws(
+    () => createSRDCloudProviderPlugin({
+      apiKey: "legacy-key",
+      codefreeAuthFile: "/missing/private-auth.json"
+    }),
+    (error) => error.code === "AUTH_FILE_READ" &&
+      error.message.includes("legacy-key") === false
+  );
+});
+
+test("provider hook reports a sanitized error when authentication is missing", () => {
+  const plugin = createSRDCloudProviderPlugin({ credentials: null });
+  const result = plugin.authenticate({
+    targetProviderConfig: {},
+    upstreamRequest: { body: {}, headers: {}, url: "https://old.example" }
+  });
+
+  assert.deepEqual(result, {
+    error: "SRDCloud authentication is not configured.",
+    ok: false
+  });
+});
+
+test("provider hook emits the legacy auth deprecation warning once", () => {
+  const warnings = [];
+  const plugin = createSRDCloudProviderPlugin({
+    apiKey: "legacy-key",
+    credentials: null,
+    logger: {
+      warn(message) {
+        warnings.push(message);
+      }
+    },
+    userId: "legacy-user"
+  });
+  const context = {
+    targetProviderConfig: {},
+    upstreamRequest: { body: {}, headers: {}, url: "https://old.example" }
+  };
+
+  plugin.authenticate(context);
+  plugin.authenticate(context);
+
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /deprecated/i);
+  assert.equal(warnings[0].includes("legacy-key"), false);
+});
+
 test("provider hook clamps chat max_tokens with discovered model maxOutputTokens", async () => {
   const plugin = createSRDCloudProviderPlugin({
     apiKey: "secret-key",
@@ -886,6 +1053,55 @@ test("provider hook clamps chat max_tokens with discovered model maxOutputTokens
 
   assert.equal(transformed.ok, true);
   assert.equal(transformed.value.body.max_tokens, 16000);
+});
+
+test("provider hook uses modern auth for model discovery", async () => {
+  let discoveredHeaders;
+  const tokenAuth = modernAuthFixture({
+    async authenticatedFetch(_url, init) {
+      discoveredHeaders = init.headers;
+      return new Response(JSON.stringify({
+        data: [{
+          modelName: "GLM-5.1",
+          maxTokens: 80000,
+          maxOutputTokens: 6000
+        }],
+        optResult: 0
+      }), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+    }
+  });
+  const plugin = createSRDCloudProviderPlugin({
+    codefreeAuthFile: "/synthetic/private-auth.json",
+    codefreeTokenAuth: tokenAuth,
+    credentials: null,
+    discoverModelLimits: true
+  });
+
+  const transformed = await plugin.transformRequest({
+    request: {
+      body: {
+        max_tokens: 10000,
+        messages: [{ role: "user", content: "hello" }],
+        model: "srdcloud/GLM-5.1"
+      }
+    },
+    targetProviderConfig: { baseurl: "https://www.srdcloud.cn" },
+    upstreamRequest: {
+      body: {},
+      headers: {},
+      url: "https://old.example/v1/responses"
+    }
+  });
+
+  assert.equal(transformed.value.body.max_tokens, 6000);
+  assert.deepEqual(discoveredHeaders, {
+    clientType: "codefree-o",
+    clientVersion: "1.5.1"
+  });
+  assert.equal(transformed.value.headers["X-Cf-Token"], "token-fixture");
 });
 
 test("provider hook logs runtime-local fingerprints and limit decisions", async () => {
@@ -1242,10 +1458,10 @@ test("provider hook drops internal x-codefree-sub-service while preserving sessi
 
 test("provider hook routes embeddings without chat normalization", async () => {
   const plugin = createSRDCloudProviderPlugin({
-    apiKey: "secret-key",
+    codefreeAuthFile: "/synthetic/private-auth.json",
+    codefreeTokenAuth: modernAuthFixture(),
     credentials: null,
-    providerName: "provider-srdcloud::openai_responses",
-    userId: "user-1"
+    providerName: "provider-srdcloud::openai_responses"
   });
 
   const transformed = await plugin.transformRequest({
@@ -1277,6 +1493,7 @@ test("provider hook routes embeddings without chat normalization", async () => {
     model: "embedding-model"
   });
   assert.equal(transformed.value.headers.modelName, "embedding-model");
+  assert.equal(transformed.value.headers["X-Cf-Token"], "token-fixture");
 });
 
 test("provider hook debug logging writes request metadata to a configured log file", async () => {
@@ -1379,9 +1596,10 @@ test("transformResponseOut is a pass-through", async () => {
 
 test("provider hook sends CCR canonical Fusion tools instead of hosted web search", async () => {
   const plugin = createSRDCloudProviderPlugin({
+    codefreeAuthFile: "/synthetic/private-auth.json",
+    codefreeTokenAuth: modernAuthFixture(),
     credentials: null,
-    providerName: "provider-srdcloud::openai_responses",
-    userId: "user-1"
+    providerName: "provider-srdcloud::openai_responses"
   });
   const transformed = await plugin.transformRequest({
     config: {
@@ -1430,10 +1648,15 @@ test("provider hook sends CCR canonical Fusion tools instead of hosted web searc
   assert.equal(transformed.value.body.system, "Use the internal search function.");
   assert.equal(transformed.value.body.tools[0].function.name, "search_model_web_search");
   assert.equal(JSON.stringify(transformed.value.body).includes("web_search_20250305"), false);
+  assert.equal(transformed.value.headers["X-Cf-Token"], "token-fixture");
 });
 
 test("provider hook keeps non-Fusion direct images on the original body path", async () => {
-  const plugin = createSRDCloudProviderPlugin({ credentials: null, userId: "user-1" });
+  const plugin = createSRDCloudProviderPlugin({
+    codefreeAuthFile: "/synthetic/private-auth.json",
+    codefreeTokenAuth: modernAuthFixture(),
+    credentials: null
+  });
   const transformed = await plugin.transformRequest({
     config: { virtualModelProfiles: [] },
     request: {
@@ -1460,6 +1683,7 @@ test("provider hook keeps non-Fusion direct images on the original body path", a
 
   assert.equal(transformed.ok, true);
   assert.equal(transformed.value.body.messages[0].content[0].type, "image_url");
+  assert.equal(transformed.value.headers["X-Cf-Token"], "token-fixture");
 });
 
 test("Chat Completions compatibility hook preserves image_url requests", async () => {

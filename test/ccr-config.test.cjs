@@ -5,9 +5,20 @@ const path = require("node:path");
 const test = require("node:test");
 
 const {
+  codefreeAuthFileFromEnvironment,
   providerNameForSRDCloud,
   withSRDCloudCoreGatewayPlugin
 } = require("../src/ccr-config.cjs");
+
+test("codefreeAuthFileFromEnvironment normalizes a configured private path", () => {
+  assert.equal(
+    codefreeAuthFileFromEnvironment({
+      SRDCLOUD_CODEFREE_AUTH_FILE: "  /synthetic/private-auth.json  "
+    }),
+    "/synthetic/private-auth.json"
+  );
+  assert.equal(codefreeAuthFileFromEnvironment({}), undefined);
+});
 
 test("providerNameForSRDCloud resolves the Desktop provider runtime name", () => {
   assert.equal(
@@ -105,4 +116,31 @@ test("withSRDCloudCoreGatewayPlugin preserves an explicit flattening opt-out", (
 
   assert.equal(nextConfig.plugins[0].config.flattenToolMessages, false);
   assert.equal(gatewayPlugin.config.flattenToolMessages, false);
+});
+
+test("withSRDCloudCoreGatewayPlugin carries modern auth into both plugin layers", () => {
+  const appConfig = {
+    Providers: [],
+    plugins: [{
+      config: {},
+      id: "srdcloud-transformer",
+      module: "/repo/index.cjs"
+    }]
+  };
+
+  const { appConfig: nextConfig, gatewayPlugin } = withSRDCloudCoreGatewayPlugin(appConfig, {
+    pluginConfigDefaults: {
+      codefreeAuthFile: "/synthetic/private-auth.json"
+    },
+    projectRoot: path.resolve("/repo")
+  });
+
+  assert.equal(
+    nextConfig.plugins[0].config.codefreeAuthFile,
+    "/synthetic/private-auth.json"
+  );
+  assert.equal(
+    gatewayPlugin.config.codefreeAuthFile,
+    "/synthetic/private-auth.json"
+  );
 });

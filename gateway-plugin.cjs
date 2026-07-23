@@ -14,6 +14,7 @@ const PLUGIN_CONFIG_KEYS = new Set([
   "authHeader",
   "clientType",
   "clientVersion",
+  "codefreeAuthFile",
   "credentials",
   "credentialsPath",
   "discoverModelLimits",
