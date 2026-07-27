@@ -56,6 +56,8 @@ API-key authentication remains supported for compatibility but is deprecated. It
 
 For a normal UI install, stop here. The extension writes its runtime bridge and default log configuration when CCR Desktop loads it.
 
+CCR Desktop 3.0.16 requires explicit permissions and surfaces for local JavaScript extensions. After upgrading an existing CCR installation, add this local extension directory again and save it so CCR imports the updated manifest declarations, then restart the gateway. If the extension remains disabled or stale, the advanced installer below repairs the same declarations in the saved plugin entry.
+
 Use the npm installer only as an advanced fallback when the UI-installed extension is present but CCR Desktop still appears to use stale code, misses the gateway fallback entry, or keeps routing SRDCloud traffic to the wrong upstream service:
 
 ```bash

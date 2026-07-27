@@ -5,6 +5,18 @@ const path = require("node:path");
 
 const DEFAULT_PLUGIN_ID = "srdcloud-transformer";
 const DEFAULT_PROVIDER_PLUGIN_KEY = "srdcloud-target-adapter";
+const DEFAULT_PLUGIN_PERMISSIONS = Object.freeze([
+  "trusted-code",
+  "apps",
+  "gateway-routes",
+  "core-gateway-config",
+  "core-provider-plugins"
+]);
+const DEFAULT_PLUGIN_SURFACES = Object.freeze({
+  apps: true,
+  gateway: true,
+  provider: true
+});
 const DEFAULT_PLUGIN_CONFIG = Object.freeze({
   flattenToolMessages: true
 });
@@ -115,6 +127,8 @@ function withSRDCloudCoreGatewayPlugin(appConfig, options = {}) {
   }
 
   const wrapperPlugin = { ...plugins[pluginIndex] };
+  wrapperPlugin.permissions = [...DEFAULT_PLUGIN_PERMISSIONS];
+  wrapperPlugin.surfaces = { ...DEFAULT_PLUGIN_SURFACES };
   const existingPluginConfig = isRecord(wrapperPlugin.config) ? wrapperPlugin.config : {};
   const pluginConfig = {
     ...serializablePluginConfig(pluginConfigDefaults),
