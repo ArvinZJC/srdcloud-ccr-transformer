@@ -4,7 +4,8 @@
 
 ### Changed
 
-- Updated the default CodeFree-O client identity to 1.5.2 and refreshed provenance for all 12 official platform packages after confirming the existing token-authentication and request contracts remain compatible.
+- Updated the default CodeFree-O client identity to 1.5.2 and refreshed provenance for all 12 official platform packages.
+- Declared the least-privilege plugin permissions and surfaces required by CCR Desktop 3.0.16, and updated the advanced config installer to repair existing saved plugin entries after an app upgrade.
 
 ## 0.4.0 - 2026-07-23
 

@@ -57,6 +57,10 @@ Pull requests should describe the CCR runtime scenario tested, list local comman
 
 During active development, collect changes under `## Unreleased` without a version or date. When preparing a release, replace that heading with the release version and date; do not retain an empty Unreleased section, and add a new one only when subsequent development begins.
 
+Each `Unreleased` or version section must describe only changes relative to the immediately preceding release. Do not restate cumulative capabilities, unchanged behaviour, or compatibility-review conclusions that produced no change.
+
+When the active changelog becomes unwieldy, move complete older release sections into versioned archive files such as `changelogs/1.x.md` and link each archive from `CHANGELOG.md`. Preserve chronological ordering and do not split a release section across files.
+
 ## Documentation Boundaries
 
 Keep user-facing setup, configuration, and troubleshooting details in `README.md`. If the same topic needs to be mentioned here for contributors, link or refer to `README.md` instead of duplicating the content.
