@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Updated the default CodeFree-O client identity to 1.5.2 and refreshed provenance for all 12 official platform packages after confirming the existing token-authentication and request contracts remain compatible.
+
 ## 0.4.0 - 2026-07-23
 
 ### Added
