@@ -110,7 +110,7 @@ test("transformRequestIn sends CodeFree-O client headers and subservice", async 
   });
 });
 
-test("transformRequestIn uses the CodeFree-O 1.5.1 client identity by default", async () => {
+test("transformRequestIn uses the CodeFree-O 1.5.2 client identity by default", async () => {
   const transformer = new SRDCloudTransformer({
     skipVersionUpdate: true,
     userId: "user-1"
@@ -121,8 +121,8 @@ test("transformRequestIn uses the CodeFree-O 1.5.1 client identity by default", 
     { apiKey: "secret-key" }
   );
 
-  assert.equal(result.config.headers["User-Agent"], "opencode/1.5.1");
-  assert.equal(result.config.headers.clientVersion, "1.5.1");
+  assert.equal(result.config.headers["User-Agent"], "opencode/1.5.2");
+  assert.equal(result.config.headers.clientVersion, "1.5.2");
 });
 
 test("transformRequestIn can include an explicit SRDCloud sessionId", async () => {
@@ -947,14 +947,14 @@ test("provider hook preserves legacy auth when modern auth is absent", () => {
   assert.deepEqual(result.value.headers, {
     "content-type": "application/json",
     Accept: "application/json",
-    "User-Agent": "opencode/1.5.1",
+    "User-Agent": "opencode/1.5.2",
     apiKey: "legacy-key",
     authorization: "Bearer custom",
     userId: "legacy-user",
     subService: "codefree_o_chat",
     modelName: undefined,
     clientType: "codefree-o",
-    clientVersion: "1.5.1"
+    clientVersion: "1.5.2"
   });
 });
 
@@ -1099,7 +1099,7 @@ test("provider hook uses modern auth for model discovery", async () => {
   assert.equal(transformed.value.body.max_tokens, 6000);
   assert.deepEqual(discoveredHeaders, {
     clientType: "codefree-o",
-    clientVersion: "1.5.1"
+    clientVersion: "1.5.2"
   });
   assert.equal(transformed.value.headers["X-Cf-Token"], "token-fixture");
 });

@@ -11,31 +11,35 @@ CodeFree-O is not the restored transformer source. The readable transformer in t
 | Client-identity baseline, 2026-07-17 | `1.4.0` | Default `clientVersion` and `User-Agent` aligned with the published client. |
 | Structural compatibility review, 2026-07-23 | `1.5.1` | Default client identity updated; request normalization, model-limit, and Fusion behavior remained compatible. |
 | Token-authentication review, 2026-07-23 | `1.5.1` | Preferred token caching, refresh rotation, and request signing reproduced with all 12 official platform packages reviewed. |
+| Maintenance compatibility review, 2026-07-27 | `1.5.2` | Default client identity and reviewed artifact matrix updated; the tracked request and token-authentication contracts remained compatible. |
 
 ## Published Artifacts
 
-The review compared the npm wrapper and every optional 1.5.1 platform package. The platform artifacts are recorded because the wrapper contains installation logic, not the compiled runtime whose embedded contracts were inspected.
+The current review compared the npm wrapper and every optional 1.5.2 platform package. The platform artifacts are recorded because the wrapper contains installation logic, not the compiled runtime whose embedded contracts were inspected.
 
 | Package | Version | Tarball integrity |
 | --- | --- | --- |
 | `@srdcloud/codefree-o` | `1.4.0` | `sha512-WrQCdHgToUVw7vVSLeNMMFX/Y9rFau8ZGUoR/fYbeiwUN9ofvXZjAOK9NQjtxz03Q4zvtIfowBncy7Avs7YmMQ==` |
 | `@srdcloud/codefree-o` | `1.5.1` | `sha512-HUyCu1khWtt7Er8N9Ni8tplGpELBX/ZJP4c0cdAdZCV6wiU0PKDHgPRlFcOS82xPVVPFqDCneRWc7fqr9eZqjw==` |
+| `@srdcloud/codefree-o` | `1.5.2` | `sha512-/oD6m3rNTe5pt/jxOyQ6DB6jXIfHIi85KMoVAZxzJRgqZoHwgrmMje90p1xE2P/MI/bbUS/9/uTltQzdfMKMYw==` |
 | `@srdcloud/codefree-darwin-arm64` | `1.4.0` | `sha512-XB7RnBbbGa67AiUrtNzjE9c7q0Dm3Lk5FMQrzndQVLWmUB4hTuKGvSAPWqCp32KweCUvCbz3tYMc0ep2xU8CPg==` |
-| All 12 official platform packages | `1.5.1` | Individual npm integrities are recorded in `codefree-o-auth.json`. |
+| All 12 official platform packages | `1.5.2` | Individual npm integrities are recorded in `codefree-o-auth.json`. |
 
 Published tarballs:
 
 - `https://registry.npmjs.org/@srdcloud/codefree-o/-/codefree-o-1.4.0.tgz`
 - `https://registry.npmjs.org/@srdcloud/codefree-o/-/codefree-o-1.5.1.tgz`
+- `https://registry.npmjs.org/@srdcloud/codefree-o/-/codefree-o-1.5.2.tgz`
 - `https://registry.npmjs.org/@srdcloud/codefree-darwin-arm64/-/codefree-darwin-arm64-1.4.0.tgz`
-- The 12 version-1.5.1 platform tarballs named in `codefree-o-auth.json`
+- The 12 version-1.5.2 platform tarballs named in `codefree-o-auth.json`
 
 Extracted platform binaries:
 
 | Version | Published path | Size | SHA-256 |
 | --- | --- | ---: | --- |
 | `1.4.0` | `bin/opencode` | `98451554` bytes | `3be1c45958a5fcb50e9f116fd85356a8b30c7988fc93dcffbbd69e32d984d58e` |
-| `1.5.1` | Eight unique platform binaries | See `codefree-o-auth.json` | Eight reviewed SHA-256 identities |
+| `1.5.1` | Eight unique platform binaries | Historical review | Eight reviewed SHA-256 identities |
+| `1.5.2` | Eight unique platform binaries | See `codefree-o-auth.json` | Eight reviewed SHA-256 identities |
 
 ## Contract Boundary
 
@@ -55,11 +59,11 @@ The extension tracks these observable CodeFree-O properties:
 
 API-key authentication from the restored `codefree-helper` behavior remains a deprecated compatibility fallback only when modern configuration is absent. Modern configuration takes precedence and fails closed when invalid.
 
-## 1.5.1 Review Evidence
+## 1.5.2 Review Evidence
 
-The 1.4.0 macOS ARM64 baseline and the complete 1.5.1 package matrix were compared. The 12 official 1.5.1 packages reduce to eight unique executables: macOS ARM64/x64, Windows ARM64/x64, Linux ARM64/x64 glibc, and Linux ARM64/x64 musl. Every executable passed the same semantic authentication validator.
+The 1.5.1 macOS ARM64 baseline and the complete 1.5.2 package matrix were compared. The 12 official 1.5.2 packages reduce to eight unique executables: macOS ARM64/x64, Windows ARM64/x64, Linux ARM64/x64 glibc, and Linux ARM64/x64 musl. Every executable passed the same semantic authentication validator, and the locally installed macOS ARM64 executable exactly matched its published artifact.
 
-The CodeFree provider still uses the same chat and embedding routing, client type, session and model header projection, subservice handling, signed request transport, and model-response mapping. Version 1.5.1 forwards an abort signal through model discovery and adds provider discovery, but neither changes the model-limit request or response contract used by this extension.
+The CodeFree provider still uses the same chat and embedding routing, client type, session and model header projection, subservice handling, signed request transport, model-response mapping, and model-limit request and response contract used by this extension. The reviewed 1.5.2 anchors match the 1.5.1 structure and occurrence counts; the published client identity is the only tracked request-contract value that changed.
 
 The token-authentication review additionally verified the lazy access-token cache, 60-second refresh skew, flexible refresh response fields, refresh-token rotation, version-2 encrypted credential envelope, modern request header set, and method-only HMAC input. The machine-readable artifact identity and extraction profile are recorded in `codefree-o-auth.json`.
 
@@ -67,7 +71,7 @@ Recovered protocol values and all user-specific credentials, identities, tokens,
 
 An exact reviewed identity is labeled `known-artifact`. An unknown fingerprint at CodeFree-O 1.4.0 or later can be labeled `semantic-contract` only after the same encryption, refresh, expiry, signing, and header relationships pass. `semantic-contract` demonstrates local compatibility; it is not a claim that an unknown binary was published by the reviewed npm account.
 
-The npm wrapper changed its platform executable name from `opencode` to `codefree-o`, installs the selected binary as `bin/codefree-o.exe`, and verifies that the installed executable reports the wrapper version. These packaging changes do not affect the CCR provider hook.
+The npm wrapper continues to install the selected executable as `bin/codefree-o.exe` and verify that it reports the wrapper version. Its post-install implementation is unchanged from 1.5.1; only wrapper and optional-dependency version metadata changed.
 
 This was a structural artifact comparison, not a substitute for a live request through CCR Desktop and the installed CodeFree service account.
 

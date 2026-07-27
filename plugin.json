@@ -2,6 +2,18 @@
   "id": "srdcloud-transformer",
   "name": "SRD Cloud Transformer",
   "module": "index.cjs",
+  "permissions": [
+    "trusted-code",
+    "apps",
+    "gateway-routes",
+    "core-gateway-config",
+    "core-provider-plugins"
+  ],
+  "surfaces": {
+    "apps": true,
+    "gateway": true,
+    "provider": true
+  },
   "apps": [
     {
       "id": "srdcloud-transformer-status",

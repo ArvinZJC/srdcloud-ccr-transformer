@@ -86,6 +86,18 @@ test("withSRDCloudCoreGatewayPlugin writes a module plugin into the saved wrappe
     logFile: "/logs/srdcloud-transformer.log",
     logLevel: "debug"
   });
+  assert.deepEqual(nextConfig.plugins[0].permissions, [
+    "trusted-code",
+    "apps",
+    "gateway-routes",
+    "core-gateway-config",
+    "core-provider-plugins"
+  ]);
+  assert.deepEqual(nextConfig.plugins[0].surfaces, {
+    apps: true,
+    gateway: true,
+    provider: true
+  });
   assert.deepEqual(nextConfig.plugins[0].coreGateway.config.plugins, [gatewayPlugin]);
 });
 

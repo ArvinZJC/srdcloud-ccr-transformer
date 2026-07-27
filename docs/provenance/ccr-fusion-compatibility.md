@@ -16,6 +16,7 @@ non-Fusion traffic can retain its existing path.
 | Implementation baseline | `v3.0.11` (`9cd0aab309c696e2e080112bfa0c82031de3d832`) | `1.0.7` | Fusion bridge and vision shim designed and implemented against these contracts. |
 | Structural compatibility review, 2026-07-15 | `v3.0.13` (`ae265ec934b63a92d2135bfdc9ac3cb52783c42a`) | `1.0.9` | No runtime transformer change required. |
 | Structural compatibility review, 2026-07-21 | `v3.0.15` (`f22f2a4c79b2ad51b2b947377f285769470f6e09`) | `1.0.12` | No runtime transformer change required; the vision shim remains necessary. |
+| Structural compatibility review, 2026-07-27 | `v3.0.16` (`ef4efe6a9d967f4bb627c8ef549de35f0b129cf7`) | `1.0.12` | Explicit plugin access declarations required; no request-transformer change required and the vision shim remains necessary. |
 
 Published gateway packages used for the comparison:
 
@@ -48,7 +49,7 @@ The transformer relies on these provider-hook and virtual-model properties:
   OpenAI Responses.
 
 The last property is why the isolated vision compatibility shim remains needed
-for affected SRDCloud profiles in CCR 3.0.15.
+for affected SRDCloud profiles through CCR 3.0.16.
 
 ## 3.0.13 Review Evidence
 
@@ -93,19 +94,25 @@ Chat Completions request, so the compatibility shim remains necessary.
 This was a structural source and package comparison, not a substitute for a
 live request through an installed CCR Desktop build.
 
+## 3.0.16 Review Evidence
+
+The review compared CCR tags `v3.0.15` and `v3.0.16`, then checked the single README-only commit on `main` after the release tag. The installed desktop bundle reported version 3.0.16. CCR still resolves `@the-next-ai/ai-gateway` 1.0.12 with the recorded integrity, so the provider-hook inputs, source adapters, canonical `standardRequest`, and target request materialisation used by the transformer did not change at that package boundary.
+
+CCR 3.0.16 normalises configured provider-plugin names to compiled runtime or capability identities. The extension already targets the stable capability identity derived from the provider ID and protocol, so this correction requires no provider-hook change. CCR also continues to rewrite built-in Fusion vision selectors without a direct base URL to the `openai_chat_completions` capability, so the isolated vision compatibility shim remains necessary.
+
+The material extension boundary change is CCR's new explicit plugin permission and surface enforcement. An enabled third-party JavaScript plugin without declared permissions is disabled during startup before its provider hook can register. The extension manifest now declares only the access exercised by its current implementation: trusted code loading, its app entry, its status route, core gateway configuration, and core provider plugins across the apps, gateway, and provider surfaces. The advanced config installer writes the same declarations when repairing an existing saved plugin entry.
+
+This was a structural source, installed-version, and saved-config comparison. After the saved access declarations were repaired and the gateway restarted, fresh wrapper and gateway-plugin markers plus the extension status route confirmed successful startup. Authenticated Fusion vision, web search, custom MCP tools, canonical tool results, and ordinary non-Fusion traffic were not exercised and still require separate live verification.
+
 ## Upgrade Review Checklist
 
 When CCR or `@the-next-ai/ai-gateway` is upgraded:
 
-1. Record the CCR tag and commit plus the exact gateway version, tarball, and
-   lockfile integrity.
-2. Compare provider-plugin input fields and provider-name matching.
-3. Compare `standardRequest` fields, source-adapter keys, parsers, and target
-   request materialisation.
-4. Compare virtual-model profile matching and Fusion capability metadata.
-5. Confirm whether built-in vision still requires Chat Completions. Remove the
-   shim only after CCR routes the affected Responses-backed selector without it.
-6. Run `npm test` and `npm run check`.
-7. Restart the installed CCR Desktop version and manually verify Fusion vision,
-   web search, custom MCP tool execution, canonical tool results, and ordinary
-   non-Fusion requests.
+1. Record the CCR tag and commit plus the exact gateway version, tarball, and lockfile integrity.
+2. Compare plugin manifest permissions and surfaces with every registration API the extension exercises.
+3. Compare provider-plugin input fields and provider-name matching.
+4. Compare `standardRequest` fields, source-adapter keys, parsers, and target request materialisation.
+5. Compare virtual-model profile matching and Fusion capability metadata.
+6. Confirm whether built-in vision still requires Chat Completions. Remove the shim only after CCR routes the affected Responses-backed selector without it.
+7. Run `npm test` and `npm run check`.
+8. Restart the installed CCR Desktop version and manually verify Fusion vision, web search, custom MCP tool execution, canonical tool results, and ordinary non-Fusion requests.
