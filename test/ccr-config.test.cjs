@@ -90,13 +90,11 @@ test("withSRDCloudCoreGatewayPlugin writes a module plugin into the saved wrappe
     "trusted-code",
     "apps",
     "gateway-routes",
-    "core-gateway-config",
-    "core-provider-plugins"
+    "core-gateway-config"
   ]);
   assert.deepEqual(nextConfig.plugins[0].surfaces, {
     apps: true,
-    gateway: true,
-    provider: true
+    gateway: true
   });
   assert.deepEqual(nextConfig.plugins[0].coreGateway.config.plugins, [gatewayPlugin]);
 });

@@ -20,7 +20,7 @@
 
 ## Requirements
 
-- CCR Desktop 3.x installed and configured with an SRDCloud provider.
+- CCR Desktop 3.0.11–3.0.17 installed and configured with an SRDCloud provider.
 - CodeFree-O 1.4.0 or later installed and signed in for the preferred token authentication flow. The complete official 1.5.2 platform matrix is reviewed.
 - Existing legacy CodeFree credentials, or `userId` and `apiKey` supplied directly through plugin config, can still be used temporarily.
 
@@ -56,9 +56,9 @@ API-key authentication remains supported for compatibility but is deprecated. It
 
 For a normal UI install, stop here. The extension writes its runtime bridge and default log configuration when CCR Desktop loads it.
 
-CCR Desktop 3.0.16 requires explicit permissions and surfaces for local JavaScript extensions. After upgrading an existing CCR installation, add this local extension directory again and save it so CCR imports the updated manifest declarations, then restart the gateway. If the extension remains disabled or stale, the advanced installer below repairs the same declarations in the saved plugin entry.
+Starting with CCR Desktop 3.0.16, local JavaScript extensions require explicit permissions and surfaces. CCR Desktop 3.0.17 also changes gateway startup isolation and requires the current extension source. After upgrading an existing CCR installation, add this local extension directory again and save it so CCR imports the updated manifest declarations, then restart the gateway. If the extension remains disabled or stale, the advanced installer below repairs the same declarations in the saved plugin entry.
 
-Use the npm installer only as an advanced fallback when the UI-installed extension is present but CCR Desktop still appears to use stale code, misses the gateway fallback entry, or keeps routing SRDCloud traffic to the wrong upstream service:
+Use the npm installer only as an advanced fallback when the UI-installed extension is present but CCR Desktop still appears to use stale code, misses the gateway module entry, or keeps routing SRDCloud traffic to the wrong upstream service:
 
 ```bash
 npm run install:ccr-config:dry-run
@@ -114,7 +114,7 @@ If `discoverModelLimits` is enabled, the transformer queries SRDCloud model meta
 
 On a healthy restart with debug logging, the log should contain:
 
-- `wrapper registered provider hook`
+- `wrapper configured gateway module`
 - `gateway plugin created`
 - `provider hook transformed request`
 

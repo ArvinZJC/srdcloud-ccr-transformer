@@ -9,13 +9,11 @@ const DEFAULT_PLUGIN_PERMISSIONS = Object.freeze([
   "trusted-code",
   "apps",
   "gateway-routes",
-  "core-gateway-config",
-  "core-provider-plugins"
+  "core-gateway-config"
 ]);
 const DEFAULT_PLUGIN_SURFACES = Object.freeze({
   apps: true,
-  gateway: true,
-  provider: true
+  gateway: true
 });
 const DEFAULT_PLUGIN_CONFIG = Object.freeze({
   flattenToolMessages: true
