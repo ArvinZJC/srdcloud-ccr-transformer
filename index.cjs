@@ -10,8 +10,7 @@ const {
   applyFusionVisionCompatibility
 } = require("./src/ccr-vision-compat.cjs");
 const {
-  createControlledLogger,
-  createSRDCloudProviderPlugin
+  createControlledLogger
 } = require("./src/srdcloud-transformer.cjs");
 
 const GATEWAY_PLUGIN_PATH = path.join(__dirname, "gateway-plugin.cjs");
@@ -42,22 +41,10 @@ module.exports = {
       }
     });
     const runtimeConfigPath = writeGatewayPluginRuntimeConfig(gatewayPlugin.config, { projectRoot: __dirname });
-    const providerPlugin = createSRDCloudProviderPlugin(gatewayPlugin.config);
-    ctx.registerCoreGatewayProviderPlugin?.(providerPlugin);
-    let fusionVisionProviderHookRegistered = false;
-    if (compatibilityActive && typeof ctx.registerCoreGatewayProviderPlugin === "function") {
-      ctx.registerCoreGatewayProviderPlugin(createSRDCloudProviderPlugin({
-        ...gatewayPlugin.config,
-        key: `${providerPluginKey}-fusion-vision`,
-        providerName: compatibility.chatProviderName
-      }));
-      fusionVisionProviderHookRegistered = true;
-    }
-    createControlledLogger(gatewayPlugin.config).debug("[SRDCloudTransformer] wrapper registered provider hook", {
-      fallbackModuleConfigured: true,
+    createControlledLogger(gatewayPlugin.config).debug("[SRDCloudTransformer] wrapper configured gateway module", {
       flattenToolMessages: gatewayPlugin.config.flattenToolMessages === true,
       fusionVisionCompatibility: compatibility.state,
-      fusionVisionProviderHookRegistered,
+      fusionVisionGatewayHookConfigured: compatibilityActive,
       hasProviderName: typeof gatewayPlugin.config.providerName === "string" && Boolean(gatewayPlugin.config.providerName),
       logFileConfigured: typeof gatewayPlugin.config.logFile === "string" && Boolean(gatewayPlugin.config.logFile)
     });
@@ -68,7 +55,7 @@ module.exports = {
         helpers.sendJson(response, 200, {
           gatewayPluginModule: GATEWAY_PLUGIN_PATH,
           logFile: gatewayPlugin.config.logFile,
-          mode: "direct-provider-plugin",
+          mode: "gateway-module-plugin",
           ok: true,
           plugin: ctx.pluginId || "srdcloud-transformer",
           providerPlugin: providerPluginKey,

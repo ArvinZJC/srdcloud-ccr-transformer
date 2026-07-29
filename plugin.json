@@ -6,13 +6,11 @@
     "trusted-code",
     "apps",
     "gateway-routes",
-    "core-gateway-config",
-    "core-provider-plugins"
+    "core-gateway-config"
   ],
   "surfaces": {
     "apps": true,
-    "gateway": true,
-    "provider": true
+    "gateway": true
   },
   "apps": [
     {

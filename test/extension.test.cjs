@@ -5,7 +5,7 @@ const test = require("node:test");
 
 const extension = require("../index.cjs");
 
-test("extension exposes a setup function and registers the SRDCloud provider hook", async () => {
+test("extension exposes a setup function and configures the SRDCloud gateway module", async () => {
   const providerPlugins = [];
   const routes = [];
   const ctx = {
@@ -54,15 +54,7 @@ test("extension exposes a setup function and registers the SRDCloud provider hoo
 
   const registration = await extension.setup(ctx);
 
-  assert.equal(providerPlugins.length, 2);
-  assert.equal(providerPlugins[0].key, "srdcloud-target-adapter");
-  assert.equal(providerPlugins[0].providerName, "provider-srdcloud-e5357f9414::openai_responses");
-  assert.equal(typeof providerPlugins[0].transformRequest, "function");
-  assert.equal(providerPlugins[1].key, "srdcloud-target-adapter-fusion-vision");
-  assert.equal(
-    providerPlugins[1].providerName,
-    "provider-srdcloud-e5357f9414::openai_chat_completions"
-  );
+  assert.equal(providerPlugins.length, 0);
   assert.deepEqual(ctx.config.Providers[0].capabilities, [
     { baseUrl: "https://www.srdcloud.cn", type: "openai_responses" },
     { baseUrl: "https://www.srdcloud.cn", type: "openai_chat_completions" }
@@ -78,7 +70,7 @@ test("extension exposes a setup function and registers the SRDCloud provider hoo
     }
   });
   assert.equal(sent.status, 200);
-  assert.equal(sent.body.mode, "direct-provider-plugin");
+  assert.equal(sent.body.mode, "gateway-module-plugin");
   assert.match(sent.body.gatewayPluginModule, /gateway-plugin\.cjs$/);
   assert.match(sent.body.logFile, /srdcloud-transformer\.log$/);
   assert.equal(registration.coreGateway.providerPlugins, undefined);
@@ -92,6 +84,31 @@ test("extension exposes a setup function and registers the SRDCloud provider hoo
   );
   assert.match(registration.coreGateway.config.plugins[0].config.logFile, /srdcloud-transformer\.log$/);
   assert.match(registration.coreGateway.config.plugins[0].modulePath, /gateway-plugin\.cjs$/);
+});
+
+test("extension contributes transport-safe gateway config across reviewed CCR versions", async () => {
+  const providerPlugins = [];
+  const registration = await extension.setup({
+    config: {
+      Providers: [],
+      virtualModelProfiles: []
+    },
+    logger: { info() {} },
+    pluginConfig: {
+      credentials: null
+    },
+    registerCoreGatewayProviderPlugin(plugin) {
+      providerPlugins.push(plugin);
+    }
+  });
+
+  const gatewayConfig = {
+    ...registration.coreGateway.config,
+    providerPlugins
+  };
+
+  assert.doesNotThrow(() => structuredClone(gatewayConfig));
+  assert.deepEqual(JSON.parse(JSON.stringify(gatewayConfig)), gatewayConfig);
 });
 
 test("extension honours the Fusion vision compatibility opt-out", async () => {
@@ -128,8 +145,7 @@ test("extension honours the Fusion vision compatibility opt-out", async () => {
 
   const registration = await extension.setup(ctx);
 
-  assert.equal(providerPlugins.length, 1);
-  assert.equal(providerPlugins[0].providerName, "provider-srdcloud-e5357f9414::openai_responses");
+  assert.equal(providerPlugins.length, 0);
   assert.equal(ctx.config.Providers[0].capabilities, undefined);
   assert.equal(
     Object.hasOwn(registration.coreGateway.config.plugins[0].config, "fusionVisionProviderName"),
@@ -137,7 +153,7 @@ test("extension honours the Fusion vision compatibility opt-out", async () => {
   );
 });
 
-test("extension reports that the compatibility hook was not registered without a callback", async () => {
+test("extension reports the gateway module compatibility hook configuration", async () => {
   const events = [];
   const ctx = {
     config: {
@@ -173,9 +189,9 @@ test("extension reports that the compatibility hook was not registered without a
   await extension.setup(ctx);
 
   const registrationEvent = events.find(([message]) => {
-    return message === "[SRDCloudTransformer] wrapper registered provider hook";
+    return message === "[SRDCloudTransformer] wrapper configured gateway module";
   });
   assert.notEqual(registrationEvent, undefined);
   assert.equal(registrationEvent[1].fusionVisionCompatibility, "applied");
-  assert.equal(registrationEvent[1].fusionVisionProviderHookRegistered, false);
+  assert.equal(registrationEvent[1].fusionVisionGatewayHookConfigured, true);
 });

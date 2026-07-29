@@ -6,7 +6,7 @@ const test = require("node:test");
 const extension = require("../index.cjs");
 const manifest = require("../plugin.json");
 
-test("CCR 3.0.16 manifest grants exactly the surfaces and permissions used by the extension", async () => {
+test("CCR 3.0.17 manifest grants exactly the surfaces and permissions used by the extension", async () => {
   const permissions = new Set(Array.isArray(manifest.permissions) ? manifest.permissions : []);
   const surfaces = manifest.surfaces && typeof manifest.surfaces === "object"
     ? manifest.surfaces
@@ -24,7 +24,6 @@ test("CCR 3.0.16 manifest grants exactly the surfaces and permissions used by th
   };
 
   requirePermission("trusted-code");
-  const providerPlugins = [];
   const routes = [];
   const registration = await extension.setup({
     config: {
@@ -39,10 +38,6 @@ test("CCR 3.0.16 manifest grants exactly the surfaces and permissions used by th
       credentials: null
     },
     pluginId: manifest.id,
-    registerCoreGatewayProviderPlugin(providerPlugin) {
-      requireGrant("provider", "core-provider-plugins");
-      providerPlugins.push(providerPlugin);
-    },
     registerGatewayRoute(route) {
       requireGrant("gateway", "gateway-routes");
       routes.push(route);
@@ -57,7 +52,6 @@ test("CCR 3.0.16 manifest grants exactly the surfaces and permissions used by th
     requireGrant("gateway", "core-gateway-config");
   }
 
-  assert.equal(providerPlugins.length, 1);
   assert.equal(routes.length, 1);
   assert.deepEqual([...permissions].sort(), [...consumedPermissions].sort());
   assert.deepEqual(
