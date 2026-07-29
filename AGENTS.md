@@ -4,8 +4,8 @@
 
 This repository contains a CCR Desktop 3.x local extension for the SRDCloud CodeFree transformer.
 
-- `index.cjs`: CCR wrapper extension entrypoint. Registers the provider hook and status route.
-- `gateway-plugin.cjs`: core gateway module-plugin fallback loaded by CCR at runtime.
+- `index.cjs`: CCR wrapper extension entrypoint. Configures the serializable gateway module and registers the status route.
+- `gateway-plugin.cjs`: core gateway module loaded by CCR at runtime to create executable provider hooks after gateway-process startup.
 - `src/srdcloud-transformer.cjs`: readable restoration of the transformer, request normalization, logging, and provider-hook logic.
 - `src/ccr-fusion.cjs`: CCR virtual-model matching and canonical Fusion request projection for built-in vision, web search, and custom MCP tools.
 - `src/ccr-vision-compat.cjs`: removable CCR 3.x Fusion vision compatibility shim that advertises Chat Completions without replacing Responses.
@@ -45,7 +45,7 @@ When changing request normalization, add regression tests for transformed body s
 
 When changing Fusion handling, preserve CCR's canonical `standardRequest` boundary instead of rebuilding capability state from the untouched client body. Add regression tests for exact, prefix, and suffix virtual-model matches; built-in web search and vision; custom MCP tools; canonical tool results; and non-Fusion direct-image isolation. Do not infer Fusion from tool count alone.
 
-Treat the Fusion vision compatibility shim as removable. Compatibility changes must preserve the primary Responses capability, remain idempotent, avoid compatibility-only direct writes to CCR saved configuration or generated gateway configuration, and include regression coverage for the explicit opt-out and complete shim removal. The existing ignored runtime bridge may carry derived compatibility-hook metadata needed by the gateway fallback when CCR normalises module-plugin configuration away.
+Treat the Fusion vision compatibility shim as removable. Compatibility changes must preserve the primary Responses capability, remain idempotent, avoid compatibility-only direct writes to CCR saved configuration or generated gateway configuration, and include regression coverage for the explicit opt-out and complete shim removal. The existing ignored runtime bridge may carry derived compatibility-hook metadata needed by the gateway module when CCR normalises module-plugin configuration away.
 
 ## Commit & Pull Request Guidelines
 

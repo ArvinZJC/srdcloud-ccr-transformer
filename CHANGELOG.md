@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Restored CCR Desktop 3.0.17 startup by loading provider hooks only through the serializable gateway module and removing redundant wrapper access.
+
 ## 0.4.1 - 2026-07-27
 
 ### Changed
