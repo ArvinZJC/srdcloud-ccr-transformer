@@ -13,6 +13,7 @@ The extension does not import CCR or gateway internals. Runtime compatibility is
 | Structural compatibility review, 2026-07-21 | `v3.0.15` (`f22f2a4c79b2ad51b2b947377f285769470f6e09`) | `1.0.12` | No runtime transformer change required; the vision shim remains necessary. |
 | Structural compatibility review, 2026-07-27 | `v3.0.16` (`ef4efe6a9d967f4bb627c8ef549de35f0b129cf7`) | `1.0.12` | Explicit plugin access declarations required; no request-transformer change required and the vision shim remains necessary. |
 | Structural compatibility review, 2026-07-29 | `v3.0.17` (`3b99fa239b581a787034cc4e3caf35640e32b35b`) | `1.0.14` | Gateway IPC requires a serializable module descriptor instead of executable wrapper registrations; no request-transformer change required and the vision shim remains necessary. |
+| Structural compatibility review, 2026-08-03 | `v3.0.18` (`4a152d959c016b476220339e856c9f4f94624c42`) | `1.0.15` | No runtime transformer change required; the serializable module bridge remains compatible and the vision shim remains necessary. |
 
 Published gateway packages used for the comparison:
 
@@ -20,6 +21,7 @@ Published gateway packages used for the comparison:
 - `@the-next-ai/ai-gateway` 1.0.9: `https://registry.npmjs.org/@the-next-ai/ai-gateway/-/ai-gateway-1.0.9.tgz` with lockfile integrity `sha512-/nt/1ZciUgarfyJW6itfDIgKMa8HOgmt0RyPyvmUCDcbJGEEl0BNmd85Zz5boSwT70xcjNojds9DPsQXG7N+sQ==`.
 - `@the-next-ai/ai-gateway` 1.0.12: `https://registry.npmjs.org/@the-next-ai/ai-gateway/-/ai-gateway-1.0.12.tgz` with lockfile integrity `sha512-o092FXo18NwXyetqeS192jBH0dmrklpsFyU3LlOUloXOHODVraniYOUAVXzrhTYzD6pPqvVxAjI/6K2PY6hBQQ==`.
 - `@the-next-ai/ai-gateway` 1.0.14: `https://registry.npmjs.org/@the-next-ai/ai-gateway/-/ai-gateway-1.0.14.tgz` with lockfile integrity `sha512-ZVilhuxEoMxvMdPlVI55q6wm6JfWJyKLh9fS5uIAMZtc6Zzc0vf21coLYoP/hsqoNIQCchzkFgD5I2rHDG1QNA==`.
+- `@the-next-ai/ai-gateway` 1.0.15: `https://registry.npmjs.org/@the-next-ai/ai-gateway/-/ai-gateway-1.0.15.tgz` with lockfile integrity `sha512-U5SnIBGXHVq0uzzljpUb/hvND5cGehzMZegtvnB8+pRsRTM19yrAsPSaUocolB7JYun7TlKhi+BdOWp5Az17gA==`.
 
 ## Contract Boundary
 
@@ -31,7 +33,7 @@ The transformer relies on these provider-hook and virtual-model properties:
 - virtual-model profiles expose exact aliases, prefixes, suffixes, execution flags, and Fusion capability metadata;
 - built-in Fusion vision without a direct base URL is routed through the OpenAI Chat Completions capability, even when the provider's primary protocol is OpenAI Responses.
 
-The last property is why the isolated vision compatibility shim remains needed for affected SRDCloud profiles through CCR 3.0.17.
+The last property is why the isolated vision compatibility shim remains needed for affected SRDCloud profiles through CCR 3.0.18.
 
 ## 3.0.13 Review Evidence
 
@@ -72,6 +74,14 @@ This change preserves the reviewed CCR 3.0.11–3.0.16 path. Those releases writ
 CCR 3.0.17 retains the canonical provider-hook inputs used by the transformer and still rewrites Fusion vision selectors without a direct base URL to the `openai_chat_completions` capability. The request transformer and isolated vision compatibility shim therefore require no change.
 
 This was a structural source and installed-bundle comparison plus a local structured-clone regression reproduction. A restarted CCR Desktop 3.0.17 instance reported healthy service and extension status, and fresh wrapper and gateway-module markers confirmed the current module path loaded. Authenticated chat and Fusion traffic still require separate live verification.
+
+## 3.0.18 Review Evidence
+
+The review compared CCR tags `v3.0.17` and `v3.0.18`, confirmed that the local `dev/3.1` tree matches the release tag, and verified that the installed CCR Desktop bundle reports version 3.0.18. The plugin service, desktop plugin import path, core gateway config compiler, and Fusion configuration sources used by this extension are unchanged. CCR still sends the compiled gateway configuration over advanced-serialization IPC, loads the extension through its serializable `modulePath`, and rewrites built-in Fusion vision selectors without a direct base URL to the `openai_chat_completions` capability.
+
+The bundled `@the-next-ai/ai-gateway` update from 1.0.14 to 1.0.15 changes only `gateway/handler.ts` and `gateway/streaming-conversion.ts` in the published source maps. Those changes add retry handling for empty model output and extend optimistic virtual-model streaming, including native Anthropic and client-visible tool calls. The plugin loader, provider-plugin definitions, source and target adapters, canonical request types, and request-hook invocation remain unchanged. The SRDCloud hook does not define a response transformer, so these response-path changes require no extension code change.
+
+This was a structural source, published-package, and installed-version comparison plus the existing 150-test extension suite. CCR Desktop was not running during the review, so restarted service status, authenticated chat, Fusion vision, web search, custom MCP tools, and canonical tool results still require separate live verification.
 
 ## Upgrade Review Checklist
 
