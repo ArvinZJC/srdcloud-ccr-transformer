@@ -20,7 +20,7 @@
 
 ## Requirements
 
-- CCR Desktop 3.0.11–3.0.18 installed and configured with an SRDCloud provider.
+- CCR Desktop 3.0.11–3.0.20 installed and configured with an SRDCloud provider.
 - CodeFree-O 1.4.0 or later installed and signed in for the preferred token authentication flow. The complete official 1.5.2 platform matrix is reviewed.
 - Existing legacy CodeFree credentials, or `userId` and `apiKey` supplied directly through plugin config, can still be used temporarily.
 
