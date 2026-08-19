@@ -21,7 +21,7 @@
 ## Requirements
 
 - CCR Desktop 3.0.11–3.0.21 installed and configured with an SRDCloud provider.
-- CodeFree-O 1.4.0 or later installed and signed in for the preferred token authentication flow. The complete official 1.6.0 platform matrix is reviewed.
+- CodeFree-O 1.4.0 or later installed and signed in for the preferred token authentication flow. The complete official 1.6.1 platform matrix is reviewed.
 - Existing legacy CodeFree credentials, or `userId` and `apiKey` supplied directly through plugin config, can still be used temporarily.
 
 Node.js is only needed if you run the optional npm helper scripts or local tests.
@@ -34,7 +34,7 @@ Set up the preferred token authentication from the installed CodeFree-O binary:
 npm run setup:codefree-auth
 ```
 
-The helper inspects CodeFree-O locally, validates its complete authentication contract, writes owner-only authentication setup, and updates this extension's CCR configuration. Official 1.6.0 binaries are reported as `known-artifact`. A later or repackaged binary can be used when the same strict semantic validation succeeds; it is reported as `semantic-contract`, which confirms local compatibility rather than publisher provenance.
+The helper inspects CodeFree-O locally, validates its complete authentication contract, writes owner-only authentication setup, and updates this extension's CCR configuration. Official 1.6.1 binaries are reported as `known-artifact`. A later or repackaged binary can be used when the same strict semantic validation succeeds; it is reported as `semantic-contract`, which confirms local compatibility rather than publisher provenance.
 
 Setup remains offline. Its output contains artifact identity, verification mode, and restart status only; it does not print recovered authentication material or private file locations. An incompatible build fails before private setup is written and reports only non-secret investigation guidance.
 
@@ -95,7 +95,7 @@ Default option content:
 {
   "authHeader": "Bearer codefree",
   "clientType": "codefree-o",
-  "clientVersion": "1.6.0",
+  "clientVersion": "1.6.1",
   "discoverModelLimits": false,
   "flattenToolMessages": true,
   "logLevel": "warn",
@@ -104,7 +104,7 @@ Default option content:
   "logToFile": true,
   "modelLimitsTtlMs": 3600000,
   "subService": "codefree_o_chat",
-  "userAgent": "opencode/1.6.0"
+  "userAgent": "opencode/1.6.1"
 }
 ```
 

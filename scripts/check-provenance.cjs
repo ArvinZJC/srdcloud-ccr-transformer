@@ -27,10 +27,10 @@ const EXPECTED = {
 };
 const EXPECTED_CODEFREE_AUTH = {
   artifactCount: 8,
-  codefreeVersion: "1.6.0",
+  codefreeVersion: "1.6.1",
   packageCount: 12,
   profileId: "codefree-token-auth-v1",
-  wrapperIntegrity: "sha512-mNWFlLlwZq196WanqxiNFOFJBM5r3dgFkgkANZRFWO8+FLM88FASU97HWtXOck01Xq1l2C76gVdvrdipZwVT9w=="
+  wrapperIntegrity: "sha512-qAF+QwjUyvINkjOHiJJt2KVYSMBmUUkwMCTGochzEZWFM2shhJkcSVfKWBjPMO4LQwdfpZQDXoJ3gR6GuV78Ug=="
 };
 const FORBIDDEN_CODEFREE_AUTH_KEYS = new Set([
   "refreshEncryptionKey",

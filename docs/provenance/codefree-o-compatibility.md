@@ -13,10 +13,11 @@ CodeFree-O is not the restored transformer source. The readable transformer in t
 | Token-authentication review, 2026-07-23 | `1.5.1` | Preferred token caching, refresh rotation, and request signing reproduced with all 12 official platform packages reviewed. |
 | Maintenance compatibility review, 2026-07-27 | `1.5.2` | Default client identity and reviewed artifact matrix updated; the tracked request and token-authentication contracts remained compatible. |
 | Maintenance compatibility review, 2026-08-18 | `1.6.0` | Default client identity and reviewed artifact matrix updated; all 12 official packages retain the tracked request and token-authentication contracts. |
+| Maintenance compatibility review, 2026-08-19 | `1.6.1` | Default client identity and reviewed artifact matrix updated; all 12 official packages retain the tracked request and token-authentication contracts. |
 
 ## Published Artifacts
 
-The current review compared the npm wrapper and every optional 1.6.0 platform package. The platform artifacts are recorded because the wrapper contains installation logic, not the compiled runtime whose embedded contracts were inspected.
+The current review compared the npm wrapper and every optional 1.6.1 platform package. The platform artifacts are recorded because the wrapper contains installation logic, not the compiled runtime whose embedded contracts were inspected.
 
 | Package | Version | Tarball integrity |
 | --- | --- | --- |
@@ -24,8 +25,9 @@ The current review compared the npm wrapper and every optional 1.6.0 platform pa
 | `@srdcloud/codefree-o` | `1.5.1` | `sha512-HUyCu1khWtt7Er8N9Ni8tplGpELBX/ZJP4c0cdAdZCV6wiU0PKDHgPRlFcOS82xPVVPFqDCneRWc7fqr9eZqjw==` |
 | `@srdcloud/codefree-o` | `1.5.2` | `sha512-/oD6m3rNTe5pt/jxOyQ6DB6jXIfHIi85KMoVAZxzJRgqZoHwgrmMje90p1xE2P/MI/bbUS/9/uTltQzdfMKMYw==` |
 | `@srdcloud/codefree-o` | `1.6.0` | `sha512-mNWFlLlwZq196WanqxiNFOFJBM5r3dgFkgkANZRFWO8+FLM88FASU97HWtXOck01Xq1l2C76gVdvrdipZwVT9w==` |
+| `@srdcloud/codefree-o` | `1.6.1` | `sha512-qAF+QwjUyvINkjOHiJJt2KVYSMBmUUkwMCTGochzEZWFM2shhJkcSVfKWBjPMO4LQwdfpZQDXoJ3gR6GuV78Ug==` |
 | `@srdcloud/codefree-darwin-arm64` | `1.4.0` | `sha512-XB7RnBbbGa67AiUrtNzjE9c7q0Dm3Lk5FMQrzndQVLWmUB4hTuKGvSAPWqCp32KweCUvCbz3tYMc0ep2xU8CPg==` |
-| All 12 official platform packages | `1.6.0` | Individual npm integrities are recorded in `codefree-o-auth.json`. |
+| All 12 official platform packages | `1.6.1` | Individual npm integrities are recorded in `codefree-o-auth.json`. |
 
 Published tarballs:
 
@@ -33,8 +35,9 @@ Published tarballs:
 - `https://registry.npmjs.org/@srdcloud/codefree-o/-/codefree-o-1.5.1.tgz`
 - `https://registry.npmjs.org/@srdcloud/codefree-o/-/codefree-o-1.5.2.tgz`
 - `https://registry.npmjs.org/@srdcloud/codefree-o/-/codefree-o-1.6.0.tgz`
+- `https://registry.npmjs.org/@srdcloud/codefree-o/-/codefree-o-1.6.1.tgz`
 - `https://registry.npmjs.org/@srdcloud/codefree-darwin-arm64/-/codefree-darwin-arm64-1.4.0.tgz`
-- The 12 version-1.6.0 platform tarballs named in `codefree-o-auth.json`
+- The 12 version-1.6.1 platform tarballs named in `codefree-o-auth.json`
 
 Extracted platform binaries:
 
@@ -42,8 +45,9 @@ Extracted platform binaries:
 | --- | --- | ---: | --- |
 | `1.4.0` | `bin/opencode` | `98451554` bytes | `3be1c45958a5fcb50e9f116fd85356a8b30c7988fc93dcffbbd69e32d984d58e` |
 | `1.5.1` | Eight unique platform binaries | Historical review | Eight reviewed SHA-256 identities |
-| `1.5.2` | Eight unique platform binaries | See `codefree-o-auth.json` | Eight reviewed SHA-256 identities |
-| `1.6.0` | Eight unique platform binaries | See `codefree-o-auth.json` | Eight reviewed SHA-256 identities |
+| `1.5.2` | Eight unique platform binaries | Historical review | Eight reviewed SHA-256 identities |
+| `1.6.0` | Eight unique platform binaries | Historical review | Eight reviewed SHA-256 identities |
+| `1.6.1` | Eight unique platform binaries | See `codefree-o-auth.json` | Eight reviewed SHA-256 identities |
 
 ## Contract Boundary
 
@@ -86,6 +90,16 @@ The complete 1.6.0 package matrix was reviewed. Its 12 official platform package
 Comparing the 1.5.2 and 1.6.0 macOS ARM64 executables confirms that the tracked chat, embedding, and model-discovery routes remain present, as do the client type, session and model projection, subservice, model-limit fields, and result handling used by this extension. The existing validator confirms the encryption, refresh, expiry, signing, and modern-header relationships in all eight unique 1.6.0 executables. The published client identity changed from 1.5.2 to 1.6.0, which is the observed request-contract change reflected in the runtime default.
 
 The 1.6.0 npm wrapper retains the same executable installation and version check. Its post-install implementation is byte-for-byte identical to 1.5.2; the wrapper package version and optional-dependency versions are the only wrapper changes.
+
+Recovered protocol values and all user-specific credentials, identities, tokens, signatures, and local paths remain excluded from tracked provenance. This was a structural artifact comparison, not a live request through CCR Desktop or the installed CodeFree service account.
+
+## 1.6.1 Review Evidence
+
+The complete 1.6.1 package matrix was reviewed. Its 12 official platform packages reduce to eight unique executables across macOS ARM64/x64, Windows ARM64/x64, Linux ARM64/x64 glibc, and Linux ARM64/x64 musl. Every executable passed the existing semantic authentication validator, and the installed macOS ARM64 executable exactly matches the published 1.6.1 artifact at `106525922` bytes with SHA-256 `0c9baa951600c4813739cf17881951d34f97fb16292ad5e25c4eb3bee44c81f5`.
+
+Comparing the 1.6.0 and 1.6.1 macOS ARM64 executables confirms that the tracked chat, embedding, and model-discovery routes retain the same occurrence counts, as do the client type, session and model projection, subservice, model-limit fields, and result handling used by this extension. The existing validator confirms the encryption, refresh, expiry, signing, and modern-header relationships in all eight unique 1.6.1 executables. The published client identity changed from 1.6.0 to 1.6.1, which is the observed request-contract change reflected in the runtime default.
+
+The 1.6.1 npm wrapper retains the same executable installation and version check. Its post-install implementation is byte-for-byte identical to 1.6.0; the wrapper package version and optional-dependency versions are the only wrapper changes.
 
 Recovered protocol values and all user-specific credentials, identities, tokens, signatures, and local paths remain excluded from tracked provenance. This was a structural artifact comparison, not a live request through CCR Desktop or the installed CodeFree service account.
 

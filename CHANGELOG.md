@@ -5,7 +5,7 @@
 ### Changed
 
 - Extended the reviewed CCR Desktop compatibility range through 3.0.21 and recorded the bundled `@the-next-ai/ai-gateway` 1.0.17 contract review.
-- Updated the default CodeFree-O client identity to 1.6.0 and refreshed provenance for all 12 official platform packages.
+- Updated the default CodeFree-O client identity to 1.6.1 and refreshed provenance for all 12 official platform packages.
 
 ## 0.4.2 - 2026-07-29
 

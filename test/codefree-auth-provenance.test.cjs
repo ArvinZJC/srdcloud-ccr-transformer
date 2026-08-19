@@ -14,11 +14,11 @@ test("tracked provenance covers eight binaries and twelve official packages", ()
 
   assert.equal(provenance.schemaVersion, 2);
   assert.equal(provenance.wrapper.packageName, "@srdcloud/codefree-o");
-  assert.equal(provenance.wrapper.version, "1.6.0");
+  assert.equal(provenance.wrapper.version, "1.6.1");
   assert.equal(provenance.semanticProfile.id, "codefree-token-auth-v1");
   assert.equal(provenance.semanticProfile.minimumVersion, "1.4.0");
   assert.equal(provenance.artifacts.length, 8);
-  assert.ok(provenance.artifacts.every((artifact) => artifact.codefreeVersion === "1.6.0"));
+  assert.ok(provenance.artifacts.every((artifact) => artifact.codefreeVersion === "1.6.1"));
   assert.equal(
     provenance.artifacts.flatMap((artifact) => artifact.packages).length,
     12
