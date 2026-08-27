@@ -17,6 +17,7 @@ The extension does not import CCR or gateway internals. Runtime compatibility is
 | Structural compatibility review, 2026-08-10 | `v3.0.19` (`b41890610cb3e4f40172e72b70211c5e4ff480e5`) | `1.0.16` | No runtime transformer change required; per-attempt capability routing preserves the provider-hook boundary and the vision shim remains necessary. |
 | Structural compatibility review, 2026-08-10 | `v3.0.20` (`065be3bf991302a7b68bee1c3442efe303829d51`) | `1.0.16` | No runtime transformer change required; provider-context discovery and slash-model routing preserve the serializable module bridge and Fusion contracts. |
 | Structural compatibility review, 2026-08-18 | `v3.0.21` (`f2860e165aa582c51e54487cb853f5177e78ead3`) | `1.0.17` | No runtime transformer change required; provider model refresh, gateway lifecycle changes, and the gateway package update preserve the module bridge and canonical Fusion boundary, while the vision shim remains necessary. |
+| Structural compatibility review, 2026-08-27 | `v3.0.22` (`829298cf8bdcc6ddb9120a5a7c790c30227a1937`) | `1.0.18` | The module bridge and canonical Fusion boundary remain compatible; the vision shim remains necessary and now covers SRDCloud fallback models introduced by this release. |
 
 Published gateway packages used for the comparison:
 
@@ -27,6 +28,7 @@ Published gateway packages used for the comparison:
 - `@the-next-ai/ai-gateway` 1.0.15: `https://registry.npmjs.org/@the-next-ai/ai-gateway/-/ai-gateway-1.0.15.tgz` with lockfile integrity `sha512-U5SnIBGXHVq0uzzljpUb/hvND5cGehzMZegtvnB8+pRsRTM19yrAsPSaUocolB7JYun7TlKhi+BdOWp5Az17gA==`.
 - `@the-next-ai/ai-gateway` 1.0.16: `https://registry.npmjs.org/@the-next-ai/ai-gateway/-/ai-gateway-1.0.16.tgz` with lockfile integrity `sha512-9umpJ3gGROlXXGBHXHwOdhO9TEcQeG6AlnNmbccaUY5v64czQNFEod23mR31UfqLkv+TpHbKrcDtmuZ5//6S6w==`.
 - `@the-next-ai/ai-gateway` 1.0.17: `https://registry.npmjs.org/@the-next-ai/ai-gateway/-/ai-gateway-1.0.17.tgz` with lockfile integrity `sha512-KwHiWqBGVSQnbQlxZ41jCKqrOrZdzAMlgRB61AJyjenH9M8hMx/dGsRr0I+vNiU+jBvOvyih64eQRPMgO9QHsQ==`.
+- `@the-next-ai/ai-gateway` 1.0.18: `https://registry.npmjs.org/@the-next-ai/ai-gateway/-/ai-gateway-1.0.18.tgz` with lockfile integrity `sha512-KM9tMXQesW7V8URab97BhFpfABwLPhc6h/ybjaNGcCIg1Yoelu/wB9OjovbIjZO114h/hHvd7c50BSsbv/TdsA==`.
 
 ## Contract Boundary
 
@@ -38,7 +40,7 @@ The transformer relies on these provider-hook and virtual-model properties:
 - virtual-model profiles expose exact aliases, prefixes, suffixes, execution flags, and Fusion capability metadata;
 - built-in Fusion vision without a direct base URL is routed through the OpenAI Chat Completions capability, even when the provider's primary protocol is OpenAI Responses.
 
-The last property is why the isolated vision compatibility shim remains needed for affected SRDCloud profiles through CCR 3.0.21.
+The last property is why the isolated vision compatibility shim remains needed for affected SRDCloud profiles through CCR 3.0.22.
 
 ## 3.0.13 Review Evidence
 
@@ -109,6 +111,18 @@ CCR 3.0.21 preserves the plugin service, serializable `modulePath` descriptor, g
 CCR updates the bundled `@the-next-ai/ai-gateway` from 1.0.16 to 1.0.17. Comparing the published source maps shows changes to cached-token usage accounting, Gemini schema conversion, upstream proxy-environment dispatch, timeout validation, and related response handling. The plugin loader, provider-hook input and invocation, canonical request types, source adapters used by this extension, virtual-model matching, and request materialisation remain compatible.
 
 This was a structural source, published-package, installed-bundle, and local-test comparison. CCR Desktop was not restarted, so authenticated chat, model discovery, Fusion vision, web search, custom MCP tools, canonical tool results, and ordinary non-Fusion traffic still require separate live verification.
+
+## 3.0.22 Review Evidence
+
+The review compared CCR tags `v3.0.21` and `v3.0.22`, verified that the installed desktop bundle reports version 3.0.22, and inspected the local `main` checkout at `99f24806c6a2c660b16e53e95211c517448a6c90`. That checkout is one commit ahead of `v3.0.22`; the post-release changes affect sponsor links and an unrelated provider preset rather than this extension's compatibility boundary.
+
+CCR 3.0.22 preserves the plugin service path used by this extension, the serializable `modulePath` descriptor, gateway-process `createGatewayPlugin()` loading, provider-hook request inputs, source-adapter keys, and canonical `standardRequest`. The new gateway request-transform registration surface is independent of the wrapper's core-gateway configuration and requires no additional permission or surface declaration here.
+
+Fusion vision now accepts fallback models and a retry count, injects more explicit media-reference tool instructions, validates image payloads before forwarding, and can retry across configured vision models. CCR still rewrites built-in primary and fallback vision selectors without a direct base URL to `openai_chat_completions`, and the vision MCP still sends Chat Completions requests. The compatibility shim therefore remains necessary. It now examines both the primary selector and `fallbackModels`, deduplicates matching SRDCloud models, and fails closed before adding the capability if any matching model is absent from the provider model list.
+
+CCR updates the bundled `@the-next-ai/ai-gateway` from 1.0.17 to 1.0.18. Comparing the published source maps shows changes to Anthropic-compatible authorization headers, optional internal-tool result folding, content-addressed multimodal references, optimistic-stream tool-result delivery and keepalives, and Undici dispatcher handling. The plugin loader is unchanged, and the provider-hook input and invocation still include the original request, `sourceAdapterKey`, resolved model, target provider state, `upstreamRequest`, and canonical `standardRequest`.
+
+This was a structural source, published-package, installed-bundle, saved-config, and local-test comparison. CCR Desktop was not running during the review, so restarted service status, authenticated chat, model discovery, Fusion vision fallback execution, web search, custom MCP tools, canonical tool results, and ordinary non-Fusion traffic still require separate live verification.
 
 ## Upgrade Review Checklist
 
