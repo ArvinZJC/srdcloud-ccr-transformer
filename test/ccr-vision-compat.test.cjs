@@ -170,6 +170,57 @@ test("uses the Fusion vision model field when modelSelector is absent", () => {
   assert.equal(result.state, "applied");
 });
 
+test("adds Chat Completions capability for an SRDCloud Fusion vision fallback model", () => {
+  const appConfig = affectedConfig();
+  const fusionVision = appConfig.virtualModelProfiles[0].metadata.fusionVision;
+  fusionVision.modelSelector = "other/vision-primary";
+  fusionVision.fallbackModels = ["srdcloud/Qwen3.5-122B-A10B"];
+
+  const result = applyFusionVisionCompatibility(appConfig);
+
+  assert.equal(result.state, "applied");
+  assert.deepEqual(appConfig.Providers[0].capabilities, [
+    { baseUrl: "https://www.srdcloud.cn", type: "openai_responses" },
+    { baseUrl: "https://www.srdcloud.cn", type: "openai_chat_completions" }
+  ]);
+});
+
+test("fails closed when an SRDCloud Fusion vision fallback model is unknown", () => {
+  const appConfig = affectedConfig();
+  appConfig.virtualModelProfiles[0].metadata.fusionVision.fallbackModels = [
+    "srdcloud/unknown"
+  ];
+
+  const result = applyFusionVisionCompatibility(appConfig);
+
+  assert.equal(result.state, "ambiguous");
+  assert.equal(appConfig.Providers[0].capabilities, undefined);
+});
+
+test("deduplicates equivalent SRDCloud Fusion vision fallback selectors", () => {
+  const appConfig = affectedConfig();
+  const fusionVision = appConfig.virtualModelProfiles[0].metadata.fusionVision;
+  fusionVision.modelSelector = "other/vision-primary";
+  fusionVision.fallbackModels = [
+    "srdcloud/Qwen3.5-122B-A10B",
+    "srdcloud,Qwen3.5-122B-A10B"
+  ];
+  const models = appConfig.Providers[0].models;
+  const arrayIncludes = Array.prototype.includes;
+  let includesCalls = 0;
+  Object.defineProperty(models, "includes", {
+    value(model) {
+      includesCalls += 1;
+      return arrayIncludes.call(this, model);
+    }
+  });
+
+  const result = applyFusionVisionCompatibility(appConfig);
+
+  assert.equal(result.state, "applied");
+  assert.equal(includesCalls, 1);
+});
+
 test("ignores disabled Fusion vision profiles", () => {
   const appConfig = affectedConfig();
   appConfig.virtualModelProfiles[0].enabled = false;
@@ -317,14 +368,20 @@ test("preserves every explicit capability entry while appending Chat Completions
 
   assert.equal(result.state, "applied");
   assert.notEqual(appConfig.Providers[0].capabilities, capabilities);
-  assert.equal(appConfig.Providers[0].capabilities.length, capabilities.length + 1);
+  assert.equal(appConfig.Providers[0].capabilities.length, capabilities.length + 2);
   capabilities.forEach((capability, index) => {
     assert.equal(appConfig.Providers[0].capabilities[index], capability);
   });
-  assert.deepEqual(appConfig.Providers[0].capabilities.at(-1), {
-    baseUrl: "https://www.srdcloud.cn",
-    type: "openai_chat_completions"
-  });
+  assert.deepEqual(appConfig.Providers[0].capabilities.slice(-2), [
+    {
+      baseUrl: "https://www.srdcloud.cn",
+      type: "openai_responses"
+    },
+    {
+      baseUrl: "https://www.srdcloud.cn",
+      type: "openai_chat_completions"
+    }
+  ]);
 });
 
 for (const primaryProtocol of ["openai_chat_completions", "unknown_protocol"]) {

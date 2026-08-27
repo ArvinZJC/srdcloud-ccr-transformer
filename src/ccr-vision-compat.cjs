@@ -52,43 +52,45 @@ function isSRDCloudProvider(provider) {
   return name === "srdcloud" || hasSRDCloudHostname(providerBaseUrl(provider));
 }
 
-function selectedVisionModel(profile, provider) {
+function selectedVisionModels(profile, provider) {
   if (
     !isRecord(profile) ||
     profile.enabled === false ||
     profile.execution?.matchMultimodal !== true
   ) {
-    return undefined;
+    return [];
   }
 
   const fusionVision = profile.metadata?.fusionVision;
   if (!isRecord(fusionVision) || nonEmptyString(fusionVision.baseUrl)) {
-    return undefined;
+    return [];
   }
 
-  const selector = normalizeModelSelector(fusionVision.modelSelector) ||
-    normalizeModelSelector(fusionVision.model);
-  const separator = selector?.indexOf("/") ?? -1;
-  if (separator <= 0 || separator === selector.length - 1) {
-    return undefined;
-  }
-
-  const providerHint = selector.slice(0, separator).trim().toLowerCase();
   const providerNames = [nonEmptyString(provider.id), nonEmptyString(provider.name)]
     .filter(Boolean)
     .map((value) => value.toLowerCase());
-  if (!providerNames.includes(providerHint)) {
-    return undefined;
-  }
-
-  return nonEmptyString(selector.slice(separator + 1));
+  const primarySelector = normalizeModelSelector(fusionVision.modelSelector) ||
+    normalizeModelSelector(fusionVision.model);
+  const fallbackSelectors = Array.isArray(fusionVision.fallbackModels)
+    ? fusionVision.fallbackModels.map(normalizeModelSelector).filter(Boolean)
+    : [];
+  return [primarySelector, ...fallbackSelectors].flatMap((selector) => {
+    const separator = selector?.indexOf("/") ?? -1;
+    if (separator <= 0 || separator === selector.length - 1) {
+      return [];
+    }
+    const providerHint = selector.slice(0, separator).trim().toLowerCase();
+    if (!providerNames.includes(providerHint)) {
+      return [];
+    }
+    const model = nonEmptyString(selector.slice(separator + 1));
+    return model ? [model] : [];
+  });
 }
 
 function affectedVisionModels(profiles, provider) {
   return [...new Set(
-    profiles
-      .map((profile) => selectedVisionModel(profile, provider))
-      .filter(Boolean)
+    profiles.flatMap((profile) => selectedVisionModels(profile, provider))
   )];
 }
 
@@ -96,7 +98,12 @@ function explicitCapabilities(provider, baseUrl, primaryProtocol) {
   const capabilities = Array.isArray(provider.capabilities)
     ? [...provider.capabilities]
     : [];
-  if (capabilities.length === 0) {
+  const hasPrimaryCapability = capabilities.some((item) => {
+    return isRecord(item) &&
+      nonEmptyString(item.baseUrl) &&
+      nonEmptyString(item.type) === primaryProtocol;
+  });
+  if (!hasPrimaryCapability) {
     capabilities.push({ baseUrl, type: primaryProtocol });
   }
   return capabilities;

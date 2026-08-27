@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.3 - 2026-08-27
+
+### Changed
+
+- Extended the reviewed CCR Desktop compatibility range through 3.0.22, added Fusion vision fallback-model capability coverage, and recorded the bundled `@the-next-ai/ai-gateway` 1.0.18 contract review.
+- Updated the default CodeFree-O client identity to 1.6.2 and refreshed provenance for all 12 official platform packages.
+
 ## 0.4.2 - 2026-07-29
 
 ### Changed
