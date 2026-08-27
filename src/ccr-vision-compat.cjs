@@ -98,7 +98,12 @@ function explicitCapabilities(provider, baseUrl, primaryProtocol) {
   const capabilities = Array.isArray(provider.capabilities)
     ? [...provider.capabilities]
     : [];
-  if (capabilities.length === 0) {
+  const hasPrimaryCapability = capabilities.some((item) => {
+    return isRecord(item) &&
+      nonEmptyString(item.baseUrl) &&
+      nonEmptyString(item.type) === primaryProtocol;
+  });
+  if (!hasPrimaryCapability) {
     capabilities.push({ baseUrl, type: primaryProtocol });
   }
   return capabilities;

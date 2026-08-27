@@ -368,14 +368,20 @@ test("preserves every explicit capability entry while appending Chat Completions
 
   assert.equal(result.state, "applied");
   assert.notEqual(appConfig.Providers[0].capabilities, capabilities);
-  assert.equal(appConfig.Providers[0].capabilities.length, capabilities.length + 1);
+  assert.equal(appConfig.Providers[0].capabilities.length, capabilities.length + 2);
   capabilities.forEach((capability, index) => {
     assert.equal(appConfig.Providers[0].capabilities[index], capability);
   });
-  assert.deepEqual(appConfig.Providers[0].capabilities.at(-1), {
-    baseUrl: "https://www.srdcloud.cn",
-    type: "openai_chat_completions"
-  });
+  assert.deepEqual(appConfig.Providers[0].capabilities.slice(-2), [
+    {
+      baseUrl: "https://www.srdcloud.cn",
+      type: "openai_responses"
+    },
+    {
+      baseUrl: "https://www.srdcloud.cn",
+      type: "openai_chat_completions"
+    }
+  ]);
 });
 
 for (const primaryProtocol of ["openai_chat_completions", "unknown_protocol"]) {
