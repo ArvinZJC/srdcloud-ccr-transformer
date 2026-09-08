@@ -2,8 +2,8 @@
   "schemaVersion": 2,
   "wrapper": {
     "packageName": "@srdcloud/codefree-o",
-    "version": "1.6.2",
-    "integrity": "sha512-BJMNuOJUX2NCdFev6Njphu4JGX6yZry70yhk4rS+ouATbEqDE+1h/jQAtFbU4QpGsUKE8pT3lkJCIZLS5Z1ZPA=="
+    "version": "1.7.0",
+    "integrity": "sha512-urY+1LpzPsGj9W7zMAihHH0QQbSXeMkg40yU8nUrBswWAvlfLvPlRVQ0TNXw/CFUXLiiz6Z/rLSXE7K7FpS9iw=="
   },
   "semanticProfile": {
     "id": "codefree-token-auth-v1",
@@ -11,122 +11,122 @@
   },
   "artifacts": [
     {
-      "codefreeVersion": "1.6.2",
+      "codefreeVersion": "1.7.0",
       "platform": "darwin-arm64",
       "binaryPath": "bin/codefree-o",
-      "binaryBytes": 106558946,
-      "binarySha256": "5098ec8a74741f8ff4108526508dbc11e60f73204635e4f8b6246a850fd7002a",
+      "binaryBytes": 106591970,
+      "binarySha256": "05c4a201cf3914bc0ff117d917925a7cd009cede358ae480fc69da331c5b27bc",
       "packages": [
         {
           "packageName": "@srdcloud/codefree-darwin-arm64",
-          "integrity": "sha512-vDJSe+b1l1EdFFDaONwNNv9lM1E9QHqzuT7gMXG+SLVOZ66XW8H84BkAMzHZ/RyuyQieYMm2TNVhzILuQwnlRg=="
+          "integrity": "sha512-8Cgmcm1Qhb2h2Dayl1PFRV/mVHHWamgn0/DKE7apSpW7GdMCyjEFyKTmqL0QTVgRm4Kb5droiUgmwnD+Y6uElw=="
         }
       ]
     },
     {
-      "codefreeVersion": "1.6.2",
+      "codefreeVersion": "1.7.0",
       "platform": "darwin-x64",
       "binaryPath": "bin/codefree-o",
-      "binaryBytes": 112328784,
-      "binarySha256": "abb9e60f9e9f064ebbde057cc477420fd398f9b42b10c0ca2a734a1829fcd78d",
+      "binaryBytes": 112377936,
+      "binarySha256": "9bec9a69567d95436f2fbff44b2a9d40a32abf816c9f66e4c28f19a371da42a2",
       "packages": [
         {
           "packageName": "@srdcloud/codefree-darwin-x64",
-          "integrity": "sha512-mBDymAdn+XqQ01gqThvwf76LjFzLKFGnTc/eLZCFxXcndh0M9w+VUUHwnLVqd743JuNgykTRBDLmTfAzqbtZig=="
+          "integrity": "sha512-yFqzYY6N+8oLLYf7c4jRwHrwl1v3XMneh4rJ0B9KysBOfbqStcI1IxM8YpBpHT6KbanNIF199k/zlimMzqjPZg=="
         },
         {
           "packageName": "@srdcloud/codefree-darwin-x64-baseline",
-          "integrity": "sha512-qi+CG/Rdxb/g4J7CsD4XdeoXfqZ7gY7NMiS3cGUUj5Cfr7cKbautnIypluSgjLs9tvpm1AItcsawbu6B20eDyw=="
+          "integrity": "sha512-lnHtCxch0xJ2KWI4T/f3c6ce0xTTcFYqYQWQY/KKkvXrkr0IHpjWKVOzB8dEk1UnG/n3+eyFO8nrpB2tl5ayBw=="
         }
       ]
     },
     {
-      "codefreeVersion": "1.6.2",
+      "codefreeVersion": "1.7.0",
       "platform": "linux-arm64",
       "binaryPath": "bin/codefree-o",
-      "binaryBytes": 146909328,
-      "binarySha256": "a8419941d95b3bef78835a673a3afe522d0103ee9e425c3f369e4ae38a5126d3",
+      "binaryBytes": 146974864,
+      "binarySha256": "b056a7b455d133babf5e934f6556bddc2ba578c368216bf5f38c7eb6da66a813",
       "packages": [
         {
           "packageName": "@srdcloud/codefree-linux-arm64",
-          "integrity": "sha512-WCUAxxq3yALmuJ2Rxu6194nG7bXQD9lXNCOlOsPM4Nak3q/n1W3Y6e87OKByIDOQZuEKeYMD5n8XPxJr3nDBPQ=="
+          "integrity": "sha512-SI7y3sGH3t73Xl+0GBAcQ01j7ZSLATMVhPuJnaiPtAJg/Pe3VpYKZtyghw8z33GJfyplXA/95R4OeuOwFvggzA=="
         }
       ]
     },
     {
-      "codefreeVersion": "1.6.2",
+      "codefreeVersion": "1.7.0",
       "platform": "linux-x64",
       "binaryPath": "bin/codefree-o",
-      "binaryBytes": 147413120,
-      "binarySha256": "f8906240c0c17413b3a70827094cc2067eef09ac5d20b829164c9e4f26910e7c",
+      "binaryBytes": 147449984,
+      "binarySha256": "a1b8d0100cfc8d9ed9cefb24b1a3692f71fb8459d575f53d921f6df19710e349",
       "packages": [
         {
           "packageName": "@srdcloud/codefree-linux-x64",
-          "integrity": "sha512-S+lutFyJdR/Dgn/yjEzWYiTmPv33AVbPjrDq4VT+bwqCqyYIuO6clFxp+9s6ULbtdTCQoeKGFTBxXsWRNGeOUQ=="
+          "integrity": "sha512-+56/L5VAFb6VWgiYh2uzgsgQE7eccwETVHN+rrPvLvJ88W15vhe2G9eNju8VrfQZ14IuwSasDgJO5eyeXUCamA=="
         },
         {
           "packageName": "@srdcloud/codefree-linux-x64-baseline",
-          "integrity": "sha512-dUEHrFYfQ6bQq3u6pw8iU1cHBkxO7PHHyoXN+k1QO6uCB2j5qBH3t1K4sJAv0iUOd9SZ+cEsbudbRT1wwlpEjA=="
+          "integrity": "sha512-S8GqD1XPZC7+AiMnJqqpijcOUYLmdl/u6TNJaDH3Z3DZ4cXLDlTitlfHHPQj2TuOVoxDyECzWIJEkGFPVW1zwQ=="
         }
       ]
     },
     {
-      "codefreeVersion": "1.6.2",
+      "codefreeVersion": "1.7.0",
       "platform": "linux-arm64",
       "binaryPath": "bin/codefree-o",
-      "binaryBytes": 156413816,
-      "binarySha256": "7388bcf367b60707176acf9ce41bf887f96401c59f7235e801e7db2cabfb923d",
+      "binaryBytes": 156479352,
+      "binarySha256": "ea528caece656d8b5c3b4a7260ccb2d9df46583c9a1d331662674df4ea7aef22",
       "packages": [
         {
           "packageName": "@srdcloud/codefree-linux-arm64-musl",
-          "integrity": "sha512-Kim4x+s/Ttrw4SDn91zzcHDB1uhquFdCZ8va7j2LV3VGpzFtM/i4D3O+6hcnT/nqm9TzOeNEJc6KlBYPDm6Ynw=="
+          "integrity": "sha512-nGJcOsFbM0yI6eH7UHeWNgLpCjeztM95Iy+fQPJuu93hjV1MnJkB6CoQISI2yRL8VLdRb7DccD0hKq/iMCBJbg=="
         }
       ]
     },
     {
-      "codefreeVersion": "1.6.2",
+      "codefreeVersion": "1.7.0",
       "platform": "linux-x64",
       "binaryPath": "bin/codefree-o",
-      "binaryBytes": 157829408,
-      "binarySha256": "1056b1dab3857135ddf6b0820aa5f8a556bc50adccb218ada03f172b7856e466",
+      "binaryBytes": 157866272,
+      "binarySha256": "3a59b88db9126e0e98bcf2201f1b565f675f353e5156cdfb3f24327abf2b5b89",
       "packages": [
         {
           "packageName": "@srdcloud/codefree-linux-x64-musl",
-          "integrity": "sha512-EvE1A6oy/B4mg1eL6KQdtRzL4idqbmFZyjUeoQuI0sHltTPR2rY4k7xsC7/r4hb1CRFJUQ7LmlMpF6oMUHIMzA=="
+          "integrity": "sha512-sc7DpccOkn9rFIfZvLfc73iMy7MvI3oFvlxeweXSoJxSRCO3D4Tzzg+plSFKY9ySOHWSKGfN/ZYT+Qfoys/zpg=="
         },
         {
           "packageName": "@srdcloud/codefree-linux-x64-baseline-musl",
-          "integrity": "sha512-f0yPoFVG0RO+oT6UAvlgJcfqKmUtW5l+U5MvK8bkEp4p7HDdjHx9K+WP7czW2AK1/GmbWdua+dT9MG9l/k/zHA=="
+          "integrity": "sha512-zKHOR3AlaAIInJR1EH63xS8RHihW6upALZ0zZ1l1boPrTPLxeeO9N3ykAkh6cljbx/3FXyBQqsyT1DoJe1IwGQ=="
         }
       ]
     },
     {
-      "codefreeVersion": "1.6.2",
+      "codefreeVersion": "1.7.0",
       "platform": "win32-arm64",
       "binaryPath": "bin/codefree-o.exe",
-      "binaryBytes": 138259968,
-      "binarySha256": "48a8966244dbbd96d721ac5a143a53ee7e808c1b2172116d38ba3404897c7f36",
+      "binaryBytes": 138298880,
+      "binarySha256": "2ad2ed89e02a442b3d817d45f845fcc4813dd4c812b40f37b148e6c83f7cff87",
       "packages": [
         {
           "packageName": "@srdcloud/codefree-windows-arm64",
-          "integrity": "sha512-H/6DqBK7VqaPIDyqn/MHCADEiCBG1wU6WVDquRwoeqA7LTzAJ8ixyi88aXr9QG3lCz6PH9ltBvvGEt2b8oPtZA=="
+          "integrity": "sha512-G9ApfnaCfKSfLDNjxOpfoVvPFlS9/comUe5fWm1khfCLi/1Fmd9Twn44Qc0YL1djzx/QRwiFIhgR5SbcaqU9Zw=="
         }
       ]
     },
     {
-      "codefreeVersion": "1.6.2",
+      "codefreeVersion": "1.7.0",
       "platform": "win32-x64",
       "binaryPath": "bin/codefree-o.exe",
-      "binaryBytes": 142364160,
-      "binarySha256": "8636a17762b3593ad02227049118f259e132a31cb5967de5aa98175045c5a263",
+      "binaryBytes": 142403072,
+      "binarySha256": "fc0d9d2faf2b51eadbdeb7ebc404f887c19bd6842f86f86ac5ff28fbe556f74e",
       "packages": [
         {
           "packageName": "@srdcloud/codefree-windows-x64",
-          "integrity": "sha512-em/q9cfG7t7lRNzNBobRF08VB1Z0bfhsJRJ6xxs3pQljTDVxGMweqEx3YNICayaGXl4Q9mhHL5QT4nCQoOCxZQ=="
+          "integrity": "sha512-6zQjekZOTyHJ+4oK4o7zO1W/INCF9oRS52VXpkOzUfLSFWszD7vUSwuXDIfIqhwMSSesETMnItf9B0y1xvCnIg=="
         },
         {
           "packageName": "@srdcloud/codefree-windows-x64-baseline",
-          "integrity": "sha512-PwDs4dumAULzLeSvw3kAofyNBA+DUkvDfSV3ofUDlAwaPWbMoyKCvdgbBQq2soZp5se7WDfkvylmaoVxt1WB3Q=="
+          "integrity": "sha512-Cwz6fsgzIeGGdjclYgI4EBH9IxPEx1dFa6LY8X5PpO0wQNBZjLZYV6AZnom2tQwmC0RKW8CEy+obM+aDwLFwHQ=="
         }
       ]
     }

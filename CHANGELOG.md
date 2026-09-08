@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Updated the default CodeFree-O client identity to 1.7.0 and refreshed provenance for all 12 official platform packages.
+
 ## 0.4.3 - 2026-08-27
 
 ### Changed
