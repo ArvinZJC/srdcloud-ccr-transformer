@@ -19,6 +19,7 @@ The extension does not import CCR or gateway internals. Runtime compatibility is
 | Structural compatibility review, 2026-08-18 | `v3.0.21` (`f2860e165aa582c51e54487cb853f5177e78ead3`) | `1.0.17` | No runtime transformer change required; provider model refresh, gateway lifecycle changes, and the gateway package update preserve the module bridge and canonical Fusion boundary, while the vision shim remains necessary. |
 | Structural compatibility review, 2026-08-27 | `v3.0.22` (`829298cf8bdcc6ddb9120a5a7c790c30227a1937`) | `1.0.18` | The module bridge and canonical Fusion boundary remain compatible; the vision shim remains necessary and now covers SRDCloud fallback models introduced by this release. |
 | Structural compatibility review, 2026-09-11 | `v3.1.0` (`996c7f0986f098f2e21d3fed47d438b8614947ac`) | `1.0.21` | No runtime transformer change required; module validation and protected provider-hook execution remain compatible, and the vision shim remains necessary. |
+| Structural compatibility review, 2026-09-17 | `v3.1.1` (`471e715c20cfa855c681f6d31dc652164d4fa654`) | `1.0.21` | No runtime transformer change required; the gateway dependency and Fusion contracts are unchanged, and the vision shim remains necessary. |
 
 Published gateway packages used for the comparison:
 
@@ -42,7 +43,7 @@ The transformer relies on these provider-hook and virtual-model properties:
 - virtual-model profiles expose exact aliases, prefixes, suffixes, execution flags, and Fusion capability metadata;
 - built-in Fusion vision without a direct base URL is routed through the OpenAI Chat Completions capability, even when the provider's primary protocol is OpenAI Responses.
 
-The last property is why the isolated vision compatibility shim remains needed for affected SRDCloud profiles through CCR 3.1.0.
+The last property is why the isolated vision compatibility shim remains needed for affected SRDCloud profiles through CCR 3.1.1.
 
 ## 3.0.13 Review Evidence
 
@@ -141,6 +142,20 @@ The gateway also updates scheduling, health, idempotency, billing/event delivery
 Validation passed: all 153 local tests, `npm run check`, `npm run check:provenance`, and `git diff --check`. A temporary offline smoke harness transpiled the published 1.0.21 source-map loader and its dependencies with Node's TypeScript stripping, exposed the existing module-loading function, and loaded this project's actual gateway module with synthetic configuration. Both the primary-only and primary-plus-vision configurations passed the new loader validation and protected provider request execution without upstream network calls. This verifies those source-level contracts, not the complete packaged gateway runtime.
 
 Only the documented compatibility range, its changelog entry, and this evidence record changed. CCR Desktop was not restarted and no authenticated live chat, model discovery, Fusion vision/fallback, web search, or custom MCP request was sent. Those installed-app workflows remain unverified by this review.
+
+## 3.1.1 Review Evidence
+
+The review compared CCR tags `v3.1.0` and `v3.1.1`. The local checkout matches the 3.1.1 release commit `471e715c20cfa855c681f6d31dc652164d4fa654` exactly, and the installed desktop application's bundle metadata reports 3.1.1. The commit recorded here is the peeled commit of the annotated release tag.
+
+The gateway dependency remains 1.0.21: its complete npm lockfile entry, including tarball URL, integrity and dependencies, is identical between the two tags. A fresh download passed the recorded SHA-512 integrity check. CCR's plugin service, gateway config compiler, provider capability topology, and MCP implementation have no changes between these releases. The serializable module registration, canonical Fusion boundary, primary/fallback vision selector rewriting, and status-route compatibility-server behavior therefore retain the reviewed 3.1.0 contracts. The vision shim remains necessary.
+
+Relevant CCR changes are a configurable gateway config-acceptance timeout (30 seconds by default, previously 5 seconds), response-stream metrics and tray token-rate reporting, and enriched aggregate upstream error messages. Stream metering forwards the original buffers and catches metric-parsing errors; aggregate error enrichment operates on failed responses rather than changing provider request projection. These changes do not require transformer hooks or configuration changes.
+
+The upstream header sanitizer now derives and validates stable OpenCode Go session identifiers, but its new branch is restricted to the OpenCode HTTPS host, port and endpoint. OpenCode protocol-specific model discovery is likewise restricted to recognized OpenCode services. These changes do not alter SRDCloud signed authentication, session headers, model discovery, embeddings, or token-limit clamping. The Responses session-affinity helper only adds an export, with no change to its existing behavior.
+
+Validation passed: all 153 local tests, `npm run check`, `npm run check:provenance`, and `git diff --check`. A fresh temporary offline harness used the integrity-verified gateway source-map loader and protected execution implementation to load this project's actual module with synthetic primary and vision-hook configurations. A separate source-level check exercised the CCR 3.1.1 stream meter for Anthropic Messages, Chat Completions, and Responses, confirming byte-for-byte preservation of chunked synthetic SSE, including malformed event data. These checks do not exercise the complete installed gateway runtime.
+
+The README compatibility range, existing Unreleased entry, and this provenance record were updated. No runtime code or manifest change was necessary. CCR Desktop was not restarted, and authenticated chat, model discovery, Fusion vision/fallback, web search, custom MCP tools, and live stream reporting remain unverified by this review.
 
 ## Upgrade Review Checklist
 
