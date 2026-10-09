@@ -20,6 +20,7 @@ The extension does not import CCR or gateway internals. Runtime compatibility is
 | Structural compatibility review, 2026-08-27 | `v3.0.22` (`829298cf8bdcc6ddb9120a5a7c790c30227a1937`) | `1.0.18` | The module bridge and canonical Fusion boundary remain compatible; the vision shim remains necessary and now covers SRDCloud fallback models introduced by this release. |
 | Structural compatibility review, 2026-09-11 | `v3.1.0` (`996c7f0986f098f2e21d3fed47d438b8614947ac`) | `1.0.21` | No runtime transformer change required; module validation and protected provider-hook execution remain compatible, and the vision shim remains necessary. |
 | Structural compatibility review, 2026-09-17 | `v3.1.1` (`471e715c20cfa855c681f6d31dc652164d4fa654`) | `1.0.21` | No runtime transformer change required; the gateway dependency and Fusion contracts are unchanged, and the vision shim remains necessary. |
+| Structural and isolated installed-bundle review, 2026-10-09 | `v3.1.2` (`858189dabaa91b1237d796a6e37109ebd22a10c7`) | `1.0.21` package identity; pinned source plus two release patches | No runtime transformer change required; module loading and canonical Fusion requests passed loopback smoke checks, and the vision shim remains necessary. |
 
 Published gateway packages used for the comparison:
 
@@ -43,7 +44,7 @@ The transformer relies on these provider-hook and virtual-model properties:
 - virtual-model profiles expose exact aliases, prefixes, suffixes, execution flags, and Fusion capability metadata;
 - built-in Fusion vision without a direct base URL is routed through the OpenAI Chat Completions capability, even when the provider's primary protocol is OpenAI Responses.
 
-The last property is why the isolated vision compatibility shim remains needed for affected SRDCloud profiles through CCR 3.1.1.
+The last property is why the isolated vision compatibility shim remains needed for affected SRDCloud profiles through CCR 3.1.2.
 
 ## 3.0.13 Review Evidence
 
@@ -157,11 +158,41 @@ Validation passed: all 153 local tests, `npm run check`, `npm run check:provenan
 
 The README compatibility range, existing Unreleased entry, and this provenance record were updated. No runtime code or manifest change was necessary. CCR Desktop was not restarted, and authenticated chat, model discovery, Fusion vision/fallback, web search, custom MCP tools, and live stream reporting remain unverified by this review.
 
+## 3.1.2 Review Evidence
+
+The review compared CCR tags `v3.1.1` and `v3.1.2`. The clean local `main` checkout matches the peeled release commit `858189dabaa91b1237d796a6e37109ebd22a10c7`. Both the installed desktop bundle metadata and its embedded package metadata report 3.1.2.
+
+### Release Gateway Identity
+
+The complete registry gateway lockfile entry is unchanged at 1.0.21, but that is no longer sufficient to identify the desktop runtime. CCR's `.github/actions/prepare-release-gateway/action.yml` builds gateway source commit `f061ad4371b6cf99d5e248746eac1e4ffdda8980` with both patches under `patches/ai-gateway/`, and the release workflow installs that package before building desktop artifacts. A normal dependency install must not be assumed to contain these fixes. The reviewed inputs are:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `0001-fix-tool-ids-and-fusion-traces.patch` | `c32ad632769d4b358aa31eb966fa0420d42ca1b5113a146a932259288f8cc282` |
+| `0002-complete-native-replay-and-response-status.patch` | `61b5c9c553f129418456038e37df5f052058eba50d3f1356c0e35a9b4d0037de` |
+| Installed `dist/main/next-ai-gateway.js` (1,942,948 bytes) | `8af7f32e4f3d88767a4509e51ed9bea7d2f48bf75b675c707f8a2800c0c32239` |
+
+The installed gateway contains the deterministic `toolu_ccr_` ID repair and final upstream response-status capture code. Its digest identifies the inspected local artifact; it is not a reproducible-build or publisher-signature verification. The patches repair Anthropic tool IDs in JSON, SSE, and call/result replay, capture optimistic Fusion response traces with billing enabled or disabled, and preserve upstream status/headers in response traces. These gateway-owned fixes do not require duplicate logic in the SRDCloud transformer.
+
+### Extension Contracts
+
+The wrapper plugin service is unchanged. Serializable module descriptors, module-factory loading and validation, provider hook names and methods, source-adapter keys, and canonical `standardRequest` remain compatible. CCR still rewrites primary and fallback built-in vision selectors without a direct base URL to `openai_chat_completions`, so the removable vision shim remains necessary and continues to preserve the primary Responses capability.
+
+Provider capability precedence now prefers explicit entries over detected entries, and detected entries over presets. The shim's explicit Responses and Chat Completions entries remain compatible with that ordering. The config compiler's removal of stale static OAuth headers is restricted to recognized local Claude Code, Grok, and Kimi plugins; it does not replace this extension's signed CodeFree authentication. OpenCode cache-usage normalization and free-tier changes are likewise scoped to those providers.
+
+Fusion adds Serply search support and an additional vision cache-usage field without changing the canonical request boundary. Fallback attempts refresh CCR's routed-model header. Adjacent unsigned Anthropic thinking blocks are coalesced in non-streaming responses while signed blocks remain separate. Config saves gain revision-conflict detection, but the persisted config shape used by the installer remains compatible. These changes require no transformer, manifest, or installer migration.
+
+### Validation and Limits
+
+All 153 project tests, `npm run check`, and `npm run check:provenance` passed. An isolated temporary harness extracted the installed gateway entrypoint and started it with synthetic credentials, temporary configuration, and a loopback mock upstream. A test module delegated to this project's actual `createGatewayPlugin()` and request hooks, then replaced only the outgoing URL and headers to keep requests local. Direct primary-provider requests, the derived Chat Completions vision hook, and exact/prefix/suffix Fusion model matches all passed module loading, canonical hook-context checks, request transformation, resolved-model assertions, and non-streaming response conversion. The initial Fusion fixture used `model` instead of CCR's `fixedModel`; it was corrected before all five cases passed. Temporary artifacts and processes were removed.
+
+Only the README compatibility range, existing Unreleased entry, and this provenance record changed. The installed desktop app was not restarted or reconfigured. The isolated harness did not verify real CodeFree authentication, model discovery, actual image analysis, hosted web search, custom MCP execution, or live streaming. Existing local tests cover request shapes and shim behavior; they do not establish those end-to-end service outcomes.
+
 ## Upgrade Review Checklist
 
 When CCR or `@the-next-ai/ai-gateway` is upgraded:
 
-1. Record the CCR tag and commit plus the exact gateway version, tarball, and lockfile integrity.
+1. Record the CCR tag and commit plus the exact gateway version, tarball, and lockfile integrity. Inspect release build overrides and pinned source patches as well; when the shipped gateway differs from the registry dependency, identify and check the installed artifact.
 2. Compare plugin manifest permissions and surfaces with every registration API the extension exercises.
 3. Compare provider-plugin input fields and provider-name matching.
 4. Compare `standardRequest` fields, source-adapter keys, parsers, and target request materialisation.
