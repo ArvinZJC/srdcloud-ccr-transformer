@@ -17,7 +17,7 @@ This repository contains a CCR Desktop 3.x local extension for the SRDCloud Code
 - `scripts/install-ccr-config.cjs`: installer for updating CCR Desktop app config.
 - `scripts/setup-codefree-auth.cjs`: credential-safe token-auth setup command.
 - `test/*.test.cjs`: Node test-runner coverage for compatibility, config, gateway, and extension behavior.
-- `docs/provenance/`: tracked evidence for restored dependency behavior and reviewed CodeFree-O artifacts. Keep restoration and provenance details contributor-facing rather than adding them to `README.md`.
+- `docs/provenance/`: tracked evidence for restored dependency behavior and reviewed CCR/CodeFree-O artifacts. Keep restoration and provenance details contributor-facing rather than adding them to `README.md`.
 - `plugin.json` and `package.json`: local extension metadata.
 
 Runtime bridge files such as `.ccr-gateway-plugin.config.json` are local generated state and must stay untracked.
@@ -64,6 +64,8 @@ When the active changelog becomes unwieldy, move complete older release sections
 ## Documentation Boundaries
 
 Keep user-facing setup, configuration, and troubleshooting details in `README.md`. If the same topic needs to be mentioned here for contributors, link or refer to `README.md` instead of duplicating the content.
+
+For CCR upgrades, follow the review and record-maintenance workflow in [the compatibility reference](docs/provenance/ccr-fusion-compatibility.md#upgrade-review). Keep the current summary short and add version-specific evidence to its linked archives; do not duplicate that workflow here.
 
 Do not hard wrap prose in Markdown files; keep each paragraph or list item on one source line unless Markdown syntax requires separate lines.
 
