@@ -4,7 +4,7 @@
 
 ### Changed
 
-- Extended the documented CCR Desktop compatibility range through 3.1.2 and recorded provenance for its patched gateway release build.
+- Extended the documented CCR Desktop compatibility range through 3.1.3 and recorded provenance for the pinned gateway release builds.
 - Updated the default CodeFree-O client identity to 1.8.0 and refreshed provenance for all 12 official platform packages.
 
 ## 0.4.3 - 2026-08-27
