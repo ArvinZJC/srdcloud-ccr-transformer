@@ -47,6 +47,24 @@ function candidateRegions(binaryText) {
   const regions = [];
   for (const position of positions) {
     const cipher = binaryText.lastIndexOf(cipherAnchor, position);
+    const cryptoModule = binaryText.lastIndexOf("createCipheriv as", cipher);
+    const earlyHeader = binaryText.lastIndexOf(headerAnchor, cipher);
+    // CodeFree-O 1.9.0 emits signing before credential encryption and refresh.
+    // Keep this layout within the same bounded crypto module, and still require
+    // every relationship in validateRegion rather than trusting these anchors.
+    if (
+      cryptoModule >= 0 && earlyHeader > cryptoModule &&
+      position - cryptoModule <= MAX_AUTH_REGION_BYTES
+    ) {
+      const nextCryptoModule = binaryText.indexOf("createCipheriv as", position);
+      const end = Math.min(
+        binaryText.length,
+        position + 8 * 1024,
+        nextCryptoModule < 0 ? binaryText.length : nextCryptoModule
+      );
+      regions.push(binaryText.slice(cryptoModule, end));
+      continue;
+    }
     const header = binaryText.indexOf(headerAnchor, position);
     if (
       cipher < 0 ||
@@ -263,7 +281,7 @@ function validateRefreshAndExpiry(region) {
     "refresh rotation projection"
   );
   if (!new RegExp(
-    `await ${IDENTIFIER}\\(${escapeIdentifier(rotation[1])}\\)`
+    `await ${IDENTIFIER}\\(${escapeIdentifier(rotation[1])}(?:,${IDENTIFIER})?\\)`
   ).test(region)) {
     throw extractionError("SEMANTIC_CONTRACT", "refresh rotation persistence");
   }

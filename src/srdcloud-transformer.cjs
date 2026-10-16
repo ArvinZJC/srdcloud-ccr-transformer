@@ -12,7 +12,7 @@ const { createCodeFreeTokenAuth } = require("./codefree-token-auth.cjs");
 const DEFAULT_BASE_URL = "https://www.srdcloud.cn";
 const DEFAULT_AUTH_HEADER = "Bearer codefree";
 const DEFAULT_CLIENT_TYPE = "codefree-o";
-const DEFAULT_CLIENT_VERSION = "1.6.2";
+const DEFAULT_CLIENT_VERSION = "1.9.0";
 const DEFAULT_PACKAGE_NAME = "@srdcloud/codefree-o";
 const DEFAULT_SUB_SERVICE = "codefree_o_chat";
 const DEFAULT_USER_AGENT = `opencode/${DEFAULT_CLIENT_VERSION}`;
@@ -615,6 +615,7 @@ function srdCloudBaseHeaders(options, modelName, existingHeaders = {}) {
     Accept: "application/json",
     "User-Agent": options.userAgent || DEFAULT_USER_AGENT,
     subService: options.subService || DEFAULT_SUB_SERVICE,
+    codefreeClient: "codefreeo",
     modelName,
     clientType: options.clientType || DEFAULT_CLIENT_TYPE,
     clientVersion: options.clientVersion || DEFAULT_CLIENT_VERSION,
@@ -1188,6 +1189,7 @@ class SRDCloudTransformer {
       authorization: this.authHeader,
       userId: this.userId,
       subService: this.subService,
+      codefreeClient: "codefreeo",
       modelName,
       clientType: this.clientType,
       clientVersion: this.clientVersion,

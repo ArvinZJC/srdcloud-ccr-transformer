@@ -250,3 +250,63 @@ test("keeps later token projection inside the bounded auth region", () => {
     "client-fixture"
   );
 });
+
+function signingFirstFixture(changes = {}) {
+  const fixture = semanticFixture({}, changes);
+  const signingStart = fixture.indexOf("async function signRequest(");
+  const importEnd = fixture.indexOf(";") + 1;
+  return fixture.slice(0, importEnd) + fixture.slice(signingStart) + ";" +
+    fixture.slice(importEnd, signingStart);
+}
+
+test("accepts the CodeFree-O 1.9.0 signing-before-refresh layout", () => {
+  assert.deepEqual(
+    validateAndExtractCodeFreeAuthMaterial(signingFirstFixture(), PROFILE),
+    validateAndExtractCodeFreeAuthMaterial(semanticFixture(), PROFILE)
+  );
+});
+
+test("rejects incomplete and duplicate signing-before-refresh contracts", () => {
+  for (const changes of [
+    { signatureOrder: "app-method-time-nonce" },
+    { disconnectTokenHeader: true },
+    { omitRotationPersistence: true },
+    { omitSkew: true }
+  ]) {
+    assert.throws(
+      () => validateAndExtractCodeFreeAuthMaterial(signingFirstFixture(changes), PROFILE),
+      (error) => error.code === "SEMANTIC_CONTRACT"
+    );
+  }
+  const fixture = signingFirstFixture();
+  assert.throws(
+    () => validateAndExtractCodeFreeAuthMaterial(`${fixture};${fixture}`, PROFILE),
+    (error) => error.code === "EXTRACTION_AMBIGUOUS"
+  );
+});
+
+test("does not join distant signing and refresh regions", () => {
+  const fixture = signingFirstFixture().replace(
+    "var refreshSkew=",
+    `const padding="${"x".repeat(96 * 1024)}";var refreshSkew=`
+  );
+  assert.throws(
+    () => validateAndExtractCodeFreeAuthMaterial(fixture, PROFILE),
+    (error) => error.code === "SEMANTIC_CONTRACT"
+  );
+});
+
+test("accepts rotation persistence with a credential-generation argument", () => {
+  const fixture = signingFirstFixture().replace(
+    "await persist(next);",
+    "await persist(next,generation);"
+  );
+  assert.equal(validateAndExtractCodeFreeAuthMaterial(fixture, PROFILE).clientId, "client-fixture");
+  assert.throws(
+    () => validateAndExtractCodeFreeAuthMaterial(
+      fixture.replace("persist(next,generation)", "persist(unrelated,generation)"),
+      PROFILE
+    ),
+    (error) => error.code === "SEMANTIC_CONTRACT"
+  );
+});
