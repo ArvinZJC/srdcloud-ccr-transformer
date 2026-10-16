@@ -67,6 +67,8 @@ Keep user-facing setup, configuration, and troubleshooting details in `README.md
 
 For CCR upgrades, follow the review and record-maintenance workflow in [the compatibility reference](docs/provenance/ccr-fusion-compatibility.md#upgrade-review). Keep the current summary short and add version-specific evidence to its linked archives; do not duplicate that workflow here.
 
+For CodeFree-O upgrades, follow the [CodeFree-O review and record-maintenance workflow](docs/provenance/codefree-o-compatibility.md#upgrade-review), including versioned artifact snapshots and the separate active authentication baseline.
+
 Do not hard wrap prose in Markdown files; keep each paragraph or list item on one source line unless Markdown syntax requires separate lines.
 
 Do not expose SRDCloud API route paths, credential file locations, log file locations, or machine-specific local paths in public-facing docs. Keep those details in implementation code, tests, or provenance records only when they are needed for maintainability.
