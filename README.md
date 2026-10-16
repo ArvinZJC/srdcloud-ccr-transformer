@@ -1,6 +1,8 @@
 # srdcloud-ccr-transformer
 
-[![GitHub Release](https://img.shields.io/github/v/release/ArvinZJC/srdcloud-ccr-transformer?include_prereleases)](../../releases) ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/ArvinZJC/srdcloud-ccr-transformer) [![GitHub License](https://img.shields.io/github/license/ArvinZJC/srdcloud-ccr-transformer?label=licence)](./LICENCE)
+[![GitHub Release](https://img.shields.io/github/v/release/ArvinZJC/srdcloud-ccr-transformer?include_prereleases)](../../releases)
+![GitHub commit activity](https://img.shields.io/github/commit-activity/m/ArvinZJC/srdcloud-ccr-transformer)
+[![GitHub License](https://img.shields.io/github/license/ArvinZJC/srdcloud-ccr-transformer?label=licence)](./LICENCE)
 
 `srdcloud-ccr-transformer` is a local [Claude Code Router (CCR) Desktop 3.x](https://github.com/musistudio/claude-code-router) extension for routing Claude Code requests to SRDCloud CodeFree.
 
