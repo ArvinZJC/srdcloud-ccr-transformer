@@ -17,10 +17,11 @@ CodeFree-O is not the restored transformer source. The readable transformer in t
 | Maintenance compatibility review, 2026-08-24 | `1.6.2` | Default client identity and reviewed artifact matrix updated; all 12 official packages retain the tracked request and token-authentication contracts. |
 | Maintenance compatibility review, 2026-09-08 | `1.7.0` | Default client identity and reviewed artifact matrix updated; authentication and request routing remain compatible. Upstream reasoning metadata and local MCP packaging changes are recorded below. |
 | Maintenance compatibility review, 2026-09-24 | `1.8.0` | Default client identity and reviewed artifact matrix updated; the tracked OAuth authentication and request contracts remain compatible. Environment-mode subservice changes are recorded below. |
+| Maintenance compatibility review, 2026-10-16 | `1.9.0` | Updated client identity and request marker, repaired auth extraction for reordered signing and generation-aware persistence, and refreshed all 12 platform records. |
 
 ## Published Artifacts
 
-The current review compared the npm wrapper and every optional 1.8.0 platform package. The platform artifacts are recorded because the wrapper contains installation logic, not the compiled runtime whose embedded contracts were inspected.
+The current review compared the npm wrapper and every optional 1.9.0 platform package. The platform artifacts are recorded because the wrapper contains installation logic, not the compiled runtime whose embedded contracts were inspected.
 
 | Package | Version | Tarball integrity |
 | --- | --- | --- |
@@ -33,7 +34,8 @@ The current review compared the npm wrapper and every optional 1.8.0 platform pa
 | `@srdcloud/codefree-o` | `1.7.0` | `sha512-urY+1LpzPsGj9W7zMAihHH0QQbSXeMkg40yU8nUrBswWAvlfLvPlRVQ0TNXw/CFUXLiiz6Z/rLSXE7K7FpS9iw==` |
 | `@srdcloud/codefree-o` | `1.8.0` | `sha512-ms0kQLJkqqIBtT1Rsaccoy+2nZNukr8LxPe0Vg2+g7MaZe6GM7lwF3aBOMm/ONBfWF8DdaoTE/OQM15HxHIszg==` |
 | `@srdcloud/codefree-darwin-arm64` | `1.4.0` | `sha512-XB7RnBbbGa67AiUrtNzjE9c7q0Dm3Lk5FMQrzndQVLWmUB4hTuKGvSAPWqCp32KweCUvCbz3tYMc0ep2xU8CPg==` |
-| All 12 official platform packages | `1.8.0` | Individual npm integrities are recorded in `codefree-o-auth.json`. |
+| `@srdcloud/codefree-o` | `1.9.0` | `sha512-lx9aa3z4dCOc/mC/EzsjkJGD0gGza+ct7APF0czKP3c3p646ElwNJiYWs1yMJCv6or3AT5240arFwp/hwQZyKQ==` |
+| All 12 official platform packages | `1.9.0` | Individual npm integrities are recorded in `codefree-o-auth.json`. |
 
 Published tarballs:
 
@@ -46,7 +48,8 @@ Published tarballs:
 - `https://registry.npmjs.org/@srdcloud/codefree-o/-/codefree-o-1.7.0.tgz`
 - `https://registry.npmjs.org/@srdcloud/codefree-o/-/codefree-o-1.8.0.tgz`
 - `https://registry.npmjs.org/@srdcloud/codefree-darwin-arm64/-/codefree-darwin-arm64-1.4.0.tgz`
-- The 12 version-1.8.0 platform tarballs named in `codefree-o-auth.json`
+- `https://registry.npmjs.org/@srdcloud/codefree-o/-/codefree-o-1.9.0.tgz`
+- The 12 version-1.9.0 platform tarballs named in `codefree-o-auth.json`
 
 Extracted platform binaries:
 
@@ -59,14 +62,15 @@ Extracted platform binaries:
 | `1.6.1` | Eight unique platform binaries | Historical review | Eight reviewed SHA-256 identities |
 | `1.6.2` | Eight unique platform binaries | Historical review | Eight reviewed SHA-256 identities |
 | `1.7.0` | Eight unique platform binaries | Historical review | Eight reviewed SHA-256 identities |
-| `1.8.0` | Eight unique platform binaries | See `codefree-o-auth.json` | Eight reviewed SHA-256 identities |
+| `1.8.0` | Eight unique platform binaries | Historical review | Eight reviewed SHA-256 identities |
+| `1.9.0` | Eight unique platform binaries | See `codefree-o-auth.json` | Eight reviewed SHA-256 identities |
 
 ## Contract Boundary
 
 The extension tracks these observable CodeFree-O properties:
 
 - the client identifies itself with `clientType: codefree-o`, the package version in `clientVersion`, and `User-Agent: opencode/<version>`;
-- chat and embedding requests retain the same service routing boundary;
+- chat and embedding requests retain the same service routing boundary and, from 1.9.0, include `codefreeClient: codefreeo`;
 - the incoming session-affinity header is projected to `sessionId`, the selected model is projected to `modelName`, and the internal subservice override is consumed before the request is sent;
 - model discovery retains the versioned CodeFree-O route and the response fields used for `modelName`, `maxTokens`, `maxOutputTokens`, and model type.
 - version-2 refresh credentials use an AES-256-GCM envelope with version, IV, ciphertext, and authentication-tag components;
@@ -146,6 +150,18 @@ The reviewed OAuth path retains credential encryption, refresh negotiation, expi
 Environment authentication already existed in 1.7.0. In 1.8.0, the CodeFree provider explicitly selects its environment-mode subservice instead of consulting the request override or normal default; the OAuth branch retains the previous selection behavior. This extension uses its existing OAuth token setup or deprecated API-key fallback and does not implement CodeFree-O's cloud-managed environment mode, so this branch does not require a transformer change. Upstream request preparation also removes the client-specific `srdWorkerRecommendations` option; CCR's canonical Fusion boundary remains the source of this extension's request body.
 
 The wrapper's preinstall and postinstall scripts are byte-for-byte identical to 1.7.0. They were inspected without execution; this review does not cover the auxiliary MCP executable's semantics. The runtime default client identity is updated to 1.8.0 while explicit overrides remain supported. Recovered protocol values and user-specific credentials remain excluded from tracked provenance. All 153 local tests, syntax checks, and provenance checks pass. CCR Desktop's gateway was restarted and its live extension status endpoint returned `ok: true` for this project's gateway module. Authenticated chat, model discovery, and Fusion requests were not exercised by this review.
+
+## 1.9.0 Review Evidence
+
+All 12 official 1.9.0 platform tarballs, both comparison wrappers, and the 1.8.0 macOS ARM64 baseline were verified against their npm SHA-512 integrities. The 12 packages still reduce to eight unique CodeFree-O executables. The installed macOS ARM64 executable matches the published artifact at `106856162` bytes with SHA-256 `e7bba045b17e60746961cf53fc15d7ade466759c70e62592fcb540ce48a1f35b`. Installed wrapper metadata and both install scripts also match the published wrapper; the scripts are unchanged from 1.8.0 and were not executed during review.
+
+The existing setup extractor rejected 1.9.0: signing now precedes encryption and refresh code, and refresh persistence receives a second identifier argument carrying the credential generation. The extractor now recognises that bounded module ordering and the optional second argument while retaining all semantic checks. Regression tests cover both layouts, malformed signing and token relationships, missing rotation or expiry checks, duplicate regions, excessive separation, and a disconnected persistence argument. All eight unique executables pass the updated validator and yield the same authentication material as the fingerprint-verified 1.8.0 baseline; no recovered values are recorded.
+
+The provider adds `codefreeClient: codefreeo` to chat and embedding requests. Both transformer entry paths now emit that marker, and the default client identity is 1.9.0; explicit version and User-Agent overrides remain supported. Chat and embedding routing, session and model projection, subservice selection and override removal, and the model-discovery mapping remain unchanged. Model discovery does not receive the provider-only marker. Canonical Fusion request projection remains unchanged.
+
+Upstream authentication now guards credential writes and refresh completion against concurrent credential clearing using a generation argument and pending-write tracking. Its refresh path can retain rotated credentials in memory after an ordinary persistence failure. This extension retains its existing stricter atomic, owner-only persistence requirement before reusing a refreshed access token; no corresponding relaxation or authentication-material migration is needed. Encryption, refresh negotiation, expiry skew, signing input, and modern header contracts remain compatible. Auxiliary MCP executable semantics were not reviewed.
+
+All 157 tests, syntax checks, and provenance checks pass. CCR Desktop’s gateway was restarted, and the live extension status endpoint returned `ok: true` with this project’s gateway module. Authenticated chat, model discovery, and Fusion requests remain unverified.
 
 ## Verification Boundary
 

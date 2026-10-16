@@ -5,7 +5,11 @@
 ### Changed
 
 - Extended the documented CCR Desktop compatibility range through 3.1.3 and recorded provenance for the pinned gateway release builds.
-- Updated the default CodeFree-O client identity to 1.8.0 and refreshed provenance for all 12 official platform packages.
+- Updated the default CodeFree-O client identity to 1.9.0 and refreshed provenance for all 12 official platform packages.
+
+### Fixed
+
+- Restored auth setup compatibility with CodeFree-O 1.9.0’s reordered signing code and credential-generation-aware refresh persistence; aligned chat and embedding requests with its client marker header.
 
 ## 0.4.3 - 2026-08-27
 

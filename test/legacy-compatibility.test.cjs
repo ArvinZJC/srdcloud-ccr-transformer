@@ -28,6 +28,7 @@ async function runLegacy(body, requestConfig, options = {}) {
 function withCodeFreeOHeaders(value) {
   const comparableValue = comparable(value);
   comparableValue.config.headers.clientType = "codefree-o";
+  comparableValue.config.headers.codefreeClient = "codefreeo";
   comparableValue.config.headers.subService = "codefree_o_chat";
   return comparableValue;
 }

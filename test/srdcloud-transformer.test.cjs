@@ -104,13 +104,14 @@ test("transformRequestIn sends CodeFree-O client headers and subservice", async 
     authorization: "Bearer custom",
     userId: "user-1",
     subService: "codefree_o_chat",
+    codefreeClient: "codefreeo",
     modelName: "body-model",
     clientType: "codefree-o",
     clientVersion: "1.2.3"
   });
 });
 
-test("transformRequestIn uses the CodeFree-O 1.8.0 client identity by default", async () => {
+test("transformRequestIn uses the CodeFree-O 1.9.0 client identity by default", async () => {
   const transformer = new SRDCloudTransformer({
     skipVersionUpdate: true,
     userId: "user-1"
@@ -121,8 +122,9 @@ test("transformRequestIn uses the CodeFree-O 1.8.0 client identity by default", 
     { apiKey: "secret-key" }
   );
 
-  assert.equal(result.config.headers["User-Agent"], "opencode/1.8.0");
-  assert.equal(result.config.headers.clientVersion, "1.8.0");
+  assert.equal(result.config.headers["User-Agent"], "opencode/1.9.0");
+  assert.equal(result.config.headers.clientVersion, "1.9.0");
+  assert.equal(result.config.headers.codefreeClient, "codefreeo");
 });
 
 test("transformRequestIn can include an explicit SRDCloud sessionId", async () => {
@@ -831,6 +833,7 @@ test("createSRDCloudProviderPlugin exposes native CCR Desktop request adapter co
     clientType: "codefree-o",
     clientVersion: "1.2.3",
     subService: "codefree_o_chat",
+    codefreeClient: "codefreeo",
     userId: "user-1",
     modelName: undefined
   });
@@ -926,6 +929,7 @@ test("provider hook gives modern auth precedence over a configured legacy api ke
   assert.equal(transformed.value.headers.authorization, undefined);
   assert.equal(transformed.value.headers["X-Cf-Token"], "token-fixture");
   assert.equal(transformed.value.headers.userId, "user-modern");
+  assert.equal(transformed.value.headers.codefreeClient, "codefreeo");
 });
 
 test("provider hook preserves legacy auth when modern auth is absent", () => {
@@ -947,14 +951,15 @@ test("provider hook preserves legacy auth when modern auth is absent", () => {
   assert.deepEqual(result.value.headers, {
     "content-type": "application/json",
     Accept: "application/json",
-    "User-Agent": "opencode/1.8.0",
+    "User-Agent": "opencode/1.9.0",
     apiKey: "legacy-key",
     authorization: "Bearer custom",
     userId: "legacy-user",
     subService: "codefree_o_chat",
+    codefreeClient: "codefreeo",
     modelName: undefined,
     clientType: "codefree-o",
-    clientVersion: "1.8.0"
+    clientVersion: "1.9.0"
   });
 });
 
@@ -1099,7 +1104,7 @@ test("provider hook uses modern auth for model discovery", async () => {
   assert.equal(transformed.value.body.max_tokens, 6000);
   assert.deepEqual(discoveredHeaders, {
     clientType: "codefree-o",
-    clientVersion: "1.8.0"
+    clientVersion: "1.9.0"
   });
   assert.equal(transformed.value.headers["X-Cf-Token"], "token-fixture");
 });
@@ -1493,6 +1498,7 @@ test("provider hook routes embeddings without chat normalization", async () => {
     model: "embedding-model"
   });
   assert.equal(transformed.value.headers.modelName, "embedding-model");
+  assert.equal(transformed.value.headers.codefreeClient, "codefreeo");
   assert.equal(transformed.value.headers["X-Cf-Token"], "token-fixture");
 });
 
